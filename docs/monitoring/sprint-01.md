@@ -4,7 +4,7 @@
    * US 1.1.1 : En tant qu'équipe, nous définissons le contrat de données commun (schéma de chunk : `chunk_id`, `document_id`, `content`, `source_path`, `format`, `chunk_index`) documenté et partagé avant d'écrire du code.
    * US 1.1.2 : En tant que développeur, j'implémente `ollama_client/base.py` (connexion HTTP asynchrone au serveur, vérification de disponibilité) à partir du wrapper fourni (`ollama_wrapper_iut.py`), en le passant en `async`/`await`.
    * US 1.1.3 : En tant que développeur, j'implémente `ollama_client/embedding.py` (appel à `/api/embed` avec `embeddinggemma`) et je vérifie/documente la dimension du vecteur retourné.
-   US 1.1.4 * : En tant que développeur, j'implémente `storage/base.py` avec une classe `VectorStore` (ChromaDB `PersistentClient`, `add_documents()`, `search()`) et une collection persistante initialisée.
+   * US 1.1.4  : En tant que développeur, j'implémente `storage/base.py` avec une classe `VectorStore` (ChromaDB `PersistentClient`, `add_documents()`, `search()`) et une collection persistante initialisée.
    * US 1.1.5 : En tant que développeur, j'implémente dans `service/core.py` un pipeline minimal `index_directory(path)` et `search(query, k=5)` reliant embedding → ChromaDB, testé sur un seul format simple (`.txt`).
    * US 1.1.6 : En tant qu'utilisateur, je dispose d'un `ui_gradio.py` minimal (une zone de texte + un bouton "Rechercher") qui appelle `search()` et affiche les résultats bruts.
    * US 1.1.7 : En tant qu'équipe, nous constituons un dataset de démo (`data/demo/`) avec au moins un fichier par format cible (pdf, docx, md, txt, csv), même si seul `.txt`/`.md` est réellement traité à ce stade.
