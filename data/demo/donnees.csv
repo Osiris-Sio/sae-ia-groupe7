@@ -1,0 +1,3 @@
+id,titre,categorie,description
+1,Architecture,Systeme,Description du fonctionnement du pipeline RAG
+2,Ollama,IA,Serveur d'inference local pour modeles LLM et embeddings
