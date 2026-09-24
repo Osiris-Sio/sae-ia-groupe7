@@ -61,18 +61,22 @@ class VectorStore:
 
     def search(
         self,
-        embedding: list[float],
+        query_embedding: list[float] | None = None,
         k: int = 5,
+        embedding: list[float] | None = None,
     ) -> dict:
         """
         Recherche les k chunks les plus proches.
         """
+        target_embedding = query_embedding if query_embedding is not None else embedding
+        if target_embedding is None:
+            raise ValueError("Un vecteur d'embedding doit être fourni.")
 
         if k <= 0:
             raise ValueError("k doit être supérieur à 0.")
 
         # Recherche les chunks les plus similaires.
         return self.collection.query(
-            query_embeddings=[embedding],
+            query_embeddings=[target_embedding],
             n_results=k,
         )

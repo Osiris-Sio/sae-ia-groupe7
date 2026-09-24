@@ -14,7 +14,7 @@ import logging
 import os
 from typing import Sequence
 
-from recherche_fichiers.ollama_client.base import (
+from .base import (
     DEFAULT_TIMEOUT,
     OllamaClient,
     OllamaError,

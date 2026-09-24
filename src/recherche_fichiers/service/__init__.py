@@ -2,8 +2,8 @@
 Package service : Orchestration de la recherche et de l'indexation sémantique.
 """
 
-from service.core import index_directory, search
-from service.utils import (
+from .core import index_directory, search
+from .utils import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
     chunk_text,

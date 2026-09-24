@@ -6,7 +6,7 @@ Fournit :
 - `LLMClient` : inférence et raisonnement avec `gemma4:12b`.
 """
 
-from recherche_fichiers.ollama_client.base import (
+from .base import (
     DEFAULT_OLLAMA_HOST,
     DEFAULT_TIMEOUT,
     OllamaClient,
@@ -16,7 +16,7 @@ from recherche_fichiers.ollama_client.base import (
     OllamaResponseError,
     is_server_running,
 )
-from recherche_fichiers.ollama_client.embedding import (
+from .embedding import (
     DEFAULT_EMBEDDING_DIM,
     DEFAULT_EMBEDDING_MODEL,
     EmbeddingClient,
@@ -24,7 +24,7 @@ from recherche_fichiers.ollama_client.embedding import (
     get_embedding,
     get_embeddings,
 )
-from recherche_fichiers.ollama_client.llm import (
+from .llm import (
     DEFAULT_LLM_MODEL,
     LLMClient,
     LLMError,
