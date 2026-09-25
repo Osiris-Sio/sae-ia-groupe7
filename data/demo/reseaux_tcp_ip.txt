@@ -1,0 +1,9 @@
+TD Réseaux : Modèle OSI et adressage IPv4
+
+Questions théoriques et pratiques :
+1. Rappelez les 7 couches du modèle OSI et détaillez le rôle de la couche Transport (comparaison TCP vs UDP).
+2. Pour l'adresse IPv4 192.168.10.45 avec un masque de sous-réseau 255.255.255.0 (/24) :
+   - Déterminez l'adresse réseau.
+   - Calculez l'adresse de diffusion (broadcast).
+   - Combien d'hôtes utilisables ce sous-réseau peut-il accueillir ?
+3. Expliquez le principe du routage statique et le fonctionnement de la commande ping (protocole ICMP).

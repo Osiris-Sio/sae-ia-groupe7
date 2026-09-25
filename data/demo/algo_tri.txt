@@ -1,0 +1,6 @@
+Exercice 1 : Algorithmes de tri et complexité temporelle
+
+Consigne :
+1. Implémentez en Python l'algorithme du tri à bulles (bubble sort) pour trier une liste d'entiers par ordre croissant.
+2. Analysez la complexité temporelle dans le pire des cas et dans le meilleur des cas (notations grand O).
+3. Comparez ses performances avec le tri fusion (merge sort) de complexité O(n log n) sur un jeu de 10 000 nombres aléatoires.
