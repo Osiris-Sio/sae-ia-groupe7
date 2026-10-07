@@ -1,0 +1,7 @@
+Fiche de cours : Programmation Orientée Objet (POO)
+
+Concepts fondamentaux :
+- Encapsulation : protection des attributs internes d'une classe via des propriétés (getters et setters).
+- Héritage : création d'une sous-classe héritant des attributs et méthodes d'une classe mère via 'super().__init__()'.
+- Polymorphisme : redéfinition de méthodes pour adapter le comportement selon l'instance concrète.
+- Exercice : Modéliser un système de gestion de véhicules avec une classe abstraite 'Vehicule' et deux classes dérivées 'Voiture' et 'Moto'.
