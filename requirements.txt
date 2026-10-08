@@ -1,0 +1,8 @@
+chromadb;
+gradio;
+httpx;
+ollama;
+pypdf;
+python-docx;
+python-dotenv;
+async-timeout;
