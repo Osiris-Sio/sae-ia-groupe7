@@ -17,7 +17,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from pathlib import Path
+
+# Permet l'exécution directe du script depuis n'importe quel dossier
+_src_dir = Path(__file__).resolve().parents[2]
+if str(_src_dir) not in sys.path:
+    sys.path.insert(0, str(_src_dir))
 
 from recherche_fichiers.service import utils
 from recherche_fichiers.storage.base import VectorStore
