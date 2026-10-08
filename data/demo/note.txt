@@ -1,0 +1,2 @@
+Projet Recherche Sémantique de Documents.
+Ce projet utilise Ollama avec le modèle EmbeddingGemma pour vectoriser le contenu des fichiers et ChromaDB pour le stockage.

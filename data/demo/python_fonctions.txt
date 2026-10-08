@@ -1,0 +1,7 @@
+TP 2 : Fonctions et récursivité en Python
+
+Objectifs pédagogiques :
+- Savoir définir une fonction réutilisable avec des paramètres obligatoires et facultatifs (*args, **kwargs).
+- Écrire une fonction factorielle de manière itérative puis récursive.
+- Implémenter la suite de Fibonacci et comparer le temps d'exécution avec et sans mémoïsation (décorateur functools.lru_cache).
+- Rédiger des docstrings claires respectant la norme PEP 257 et ajouter le typage statique (type hints).

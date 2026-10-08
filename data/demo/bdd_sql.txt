@@ -1,0 +1,7 @@
+TD 3 : Bases de données relationnelles et requêtes SQL
+
+Exercice d'application :
+Soit une base de données d'un établissement scolaire contenant les tables 'etudiants', 'cours' et 'inscriptions'.
+1. Écrire une requête SQL avec jointure interne (INNER JOIN) pour afficher les noms des étudiants inscrits au cours de Mathématiques.
+2. Utiliser les clauses GROUP BY et HAVING pour lister les cours ayant plus de 25 étudiants inscrits.
+3. Calculer la moyenne des notes par matière avec la fonction d'agrégation AVG() et trier les résultats par ordre décroissant.
