@@ -96,6 +96,19 @@ Requête utilisateur (Gradio)
   ──> Affichage dans l'interface Gradio
 ```
 
+### 4.3. Contrat de Données Commun (Schéma de Chunk)
+
+Chaque fragment documentaire extrait et indexé respecte la structure commune partagée entre les couches `service` et `storage` :
+
+| Champ | Type | Description |
+| :--- | :--- | :--- |
+| `chunk_id` | `str` | Identifiant unique du morceau (`{document_id}_{chunk_index}`) |
+| `document_id` | `str` | Identifiant du document source (nom normalisé ou hash) |
+| `content` | `str` | Contenu textuel du fragment |
+| `source_path` | `str` | Chemin d'accès vers le fichier source sur le disque |
+| `format` | `str` | Extension du document source (`txt`, `md`, `pdf`, `docx`, `csv`) |
+| `chunk_index` | `int` | Indice séquentiel du fragment dans le document d'origine |
+
 ---
 
 ## 5. Modèles d'Intelligence Artificielle
