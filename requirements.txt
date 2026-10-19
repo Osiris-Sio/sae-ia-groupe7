@@ -6,3 +6,6 @@ pypdf;
 python-docx;
 python-dotenv;
 async-timeout;
+pdfplumber;
+logging;
+pandas;
