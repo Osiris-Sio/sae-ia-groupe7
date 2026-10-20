@@ -1,0 +1,50 @@
+name: CI - Tests et Validation (Windows)
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_dispatch: # Déclenchement manuel via l'onglet "Actions" sur GitHub
+
+jobs:
+  test:
+    name: Tests unitaires Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: 📥 Récupération du code (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 🐍 Configuration de Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 📦 Installation des dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🔍 Vérification syntaxique (compilation Python)
+        run: |
+          python -m compileall src tests
+
+      - name: 🛡️ Vérification des fichiers interdits (BDD locales non suivies)
+        shell: powershell
+        run: |
+          $forbidden = git ls-files | Select-String -Pattern "data/chroma", "data/lexical.db"
+          if ($forbidden) {
+            Write-Error "Des bases de données locales (chroma ou lexical.db) ont été trouvées dans Git !"
+            exit 1
+          }
+          Write-Host "Dépôt propre : aucune base de données locale n'est commitée."
+
+      - name: 🧪 Exécution des 94 tests unitaires et d'intégration
+        run: |
+          python -m unittest discover -s tests -v

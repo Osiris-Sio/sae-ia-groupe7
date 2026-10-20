@@ -3,10 +3,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-
 # Permet d'importer le package situé dans le dossier src/
 # lorsque les tests sont lancés depuis la racine du projet.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from recherche_fichiers.storage.base import VectorStore
 
@@ -56,14 +55,10 @@ class VectorStoreTests(unittest.TestCase):
 
         # Vérifie que PersistentClient est appelé avec
         # le chemin de stockage par défaut.
-        self.persistent_client.assert_called_once_with(
-            path="data/chroma"
-        )
+        self.persistent_client.assert_called_once_with(path="data/chroma")
 
         # Vérifie que la collection "documents" est créée ou récupérée.
-        self.client.get_or_create_collection.assert_called_once_with(
-            name="documents"
-        )
+        self.client.get_or_create_collection.assert_called_once_with(name="documents")
 
         # Vérifie que VectorStore utilise bien la collection créée.
         self.assertIs(self.store.collection, self.collection)
@@ -74,20 +69,13 @@ class VectorStoreTests(unittest.TestCase):
         le chemin de stockage et le nom de la collection.
         """
 
-        VectorStore(
-            persist_path="custom/path",
-            collection_name="custom"
-        )
+        VectorStore(persist_path="custom/path", collection_name="custom")
 
         # Vérifie que le chemin personnalisé est utilisé.
-        self.persistent_client.assert_called_with(
-            path="custom/path"
-        )
+        self.persistent_client.assert_called_with(path="custom/path")
 
         # Vérifie que le nom de collection personnalisé est utilisé.
-        self.client.get_or_create_collection.assert_called_with(
-            name="custom"
-        )
+        self.client.get_or_create_collection.assert_called_with(name="custom")
 
     def test_add_documents_passes_data_and_metadata_to_collection(self) -> None:
         """
@@ -102,12 +90,7 @@ class VectorStoreTests(unittest.TestCase):
         metadatas = [{"source": "a"}, {"source": "b"}]
 
         # Appel de la méthode à tester.
-        self.store.add_documents(
-            ids,
-            documents,
-            embeddings,
-            metadatas
-        )
+        self.store.add_documents(ids, documents, embeddings, metadatas)
 
         # Vérifie que collection.add() reçoit exactement
         # les données fournies.
@@ -123,11 +106,7 @@ class VectorStoreTests(unittest.TestCase):
         Vérifie que les métadonnées sont optionnelles.
         """
 
-        self.store.add_documents(
-            ["doc-1"],
-            ["text"],
-            [[0.1]]
-        )
+        self.store.add_documents(["doc-1"], ["text"], [[0.1]])
 
         # Lorsque les métadonnées ne sont pas fournies,
         # None doit être transmis à ChromaDB.
@@ -144,12 +123,7 @@ class VectorStoreTests(unittest.TestCase):
         la liste des IDs est vide.
         """
 
-        self.store.add_documents(
-            [],
-            ["unused"],
-            [],
-            [{"unused": True}]
-        )
+        self.store.add_documents([], ["unused"], [], [{"unused": True}])
 
         # ChromaDB ne doit pas être appelé.
         self.collection.add.assert_not_called()
@@ -160,15 +134,8 @@ class VectorStoreTests(unittest.TestCase):
         de tailles différentes entre IDs, documents et embeddings.
         """
 
-        with self.assertRaisesRegex(
-            ValueError,
-            "ids, documents et embeddings"
-        ):
-            self.store.add_documents(
-                ["doc-1"],
-                [],
-                [[0.1]]
-            )
+        with self.assertRaisesRegex(ValueError, "ids, documents et embeddings"):
+            self.store.add_documents(["doc-1"], [], [[0.1]])
 
         # Comme les données sont invalides,
         # aucun ajout ne doit être effectué.
@@ -180,10 +147,7 @@ class VectorStoreTests(unittest.TestCase):
         au nombre de documents.
         """
 
-        with self.assertRaisesRegex(
-            ValueError,
-            "metadatas"
-        ):
+        with self.assertRaisesRegex(ValueError, "metadatas"):
             self.store.add_documents(
                 ["doc-1", "doc-2"],
                 ["first", "second"],
@@ -195,9 +159,7 @@ class VectorStoreTests(unittest.TestCase):
         # ne correspondent pas au nombre de documents.
         self.collection.add.assert_not_called()
 
-    def test_search_uses_query_embedding_and_returns_collection_result(
-        self
-    ) -> None:
+    def test_search_uses_query_embedding_and_returns_collection_result(self) -> None:
         """
         Vérifie que search() utilise correctement l'embedding
         de la requête et retourne le résultat de ChromaDB.
@@ -209,10 +171,7 @@ class VectorStoreTests(unittest.TestCase):
         self.collection.query.return_value = expected
 
         # Recherche avec un embedding.
-        result = self.store.search(
-            query_embedding=[0.1, 0.2],
-            k=3
-        )
+        result = self.store.search(query_embedding=[0.1, 0.2], k=3)
 
         # Vérifie que le résultat de ChromaDB est bien retourné.
         self.assertIs(result, expected)
@@ -230,9 +189,7 @@ class VectorStoreTests(unittest.TestCase):
         être utilisé pour effectuer une recherche.
         """
 
-        self.store.search(
-            embedding=[0.4, 0.5]
-        )
+        self.store.search(embedding=[0.4, 0.5])
 
         # Vérifie que l'embedding est bien transmis à ChromaDB.
         # k vaut 5 par défaut.
@@ -241,18 +198,13 @@ class VectorStoreTests(unittest.TestCase):
             n_results=5,
         )
 
-    def test_search_prefers_query_embedding_when_both_are_provided(
-        self
-    ) -> None:
+    def test_search_prefers_query_embedding_when_both_are_provided(self) -> None:
         """
         Vérifie que query_embedding est prioritaire
         lorsque query_embedding et embedding sont fournis.
         """
 
-        self.store.search(
-            query_embedding=[0.1],
-            embedding=[0.9]
-        )
+        self.store.search(query_embedding=[0.1], embedding=[0.9])
 
         # L'embedding [0.1] doit être utilisé,
         # et non [0.9].
@@ -267,10 +219,7 @@ class VectorStoreTests(unittest.TestCase):
         embedding n'est fourni pour effectuer une recherche.
         """
 
-        with self.assertRaisesRegex(
-            ValueError,
-            "embedding doit être fourni"
-        ):
+        with self.assertRaisesRegex(ValueError, "embedding doit être fourni"):
             self.store.search()
 
         # Aucune requête ne doit être envoyée à ChromaDB.
@@ -289,14 +238,8 @@ class VectorStoreTests(unittest.TestCase):
             # a provoqué un éventuel échec.
             with self.subTest(count=count):
 
-                with self.assertRaisesRegex(
-                    ValueError,
-                    "k doit être supérieur"
-                ):
-                    self.store.search(
-                        query_embedding=[0.1],
-                        k=count
-                    )
+                with self.assertRaisesRegex(ValueError, "k doit être supérieur"):
+                    self.store.search(query_embedding=[0.1], k=count)
 
         # Aucune recherche ne doit être effectuée
         # avec un nombre de résultats invalide.
