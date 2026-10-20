@@ -134,6 +134,27 @@ py -3.11 tests/service/test_utils.py
 py -3.11 tests/service/test_search.py
 ```
 
+### 🔄 Intégration Continue (CI/CD)
+
+Le projet intègre un pipeline CI/CD complet (automatique et manuel) :
+
+- **Automatique sur GitHub Actions (`.github/workflows/ci.yml`) :**
+  - Se déclenche automatiquement à chaque **Push** et **Pull Request** vers les branches `main` et `dev`.
+  - Exécute les 94 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sur environnement matriciel Windows et Linux (`ubuntu-latest`).
+  - Déclenchable également manuellement depuis l'onglet **Actions** de GitHub (*Run workflow*).
+- **Manuelle en local avant commit (`scripts/verify.ps1`) :**
+  - Exécutez simplement avant de commiter pour tout valider en 1 seconde :
+    ```powershell
+    .\scripts\verify.ps1
+    # ou : py -3.11 scripts/verify.py
+    ```
+  - *(Optionnel)* Pour bloquer automatiquement tout commit en cas d'erreur de test, installez le hook Git :
+    ```powershell
+    .\scripts\install_hook.ps1
+    ```
+
+👉 Pour consulter le détail des normes de code, de la stratégie de test et de la CI/CD, voir le guide **[docs/development_quality.md](docs/development_quality.md)**.
+
 ---
 
 ## 📁 Architecture du Projet
@@ -142,13 +163,21 @@ py -3.11 tests/service/test_search.py
 
 ```text
 sae-ia-groupe7/
+├── .github/
+│   └── workflows/
+│       └── ci.yml           # Pipeline CI/CD GitHub Actions (tests auto sur PR et push)
 ├── data/
 │   ├── demo/                # Fichiers d'exemples (.txt, .md, .csv, .docx, .pdf)
 │   ├── chroma/              # Base de données vectorielle ChromaDB
 │   └── lexical.db           # Base de données lexicale SQLite FTS5 (BM25)
 ├── docs/
+│   ├── development_quality.md # Guide de qualité logicielle, normes de code et CI/CD
 │   ├── monitoring/          # Suivi officiel des Sprints (sprint-00 à sprint-05)
 │   └── troubleshooting.md   # Guide de dépannage et débogage
+├── scripts/
+│   ├── verify.ps1           # Script PowerShell de vérification pré-commit locale
+│   ├── verify.py            # Script Python multiplateforme de validation des tests
+│   └── install_hook.ps1     # Installe le hook Git pre-commit automatique
 ├── src/
 │   └── recherche_fichiers/
 │       ├── config.py        # Réglages généraux (adresses, modèles, options)
