@@ -140,7 +140,7 @@ Le projet intègre un pipeline CI/CD complet (automatique et manuel) :
 
 - **Automatique sur GitHub Actions (`.github/workflows/ci.yml`) :**
   - Se déclenche automatiquement à chaque **Push** et **Pull Request** vers les branches `main` et `dev`.
-  - Exécute les 94 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sur environnement matriciel Windows et Linux (`ubuntu-latest`).
+  - Exécute les 94 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sous environnement officiel Windows (`windows-latest` avec PowerShell).
   - Déclenchable également manuellement depuis l'onglet **Actions** de GitHub (*Run workflow*).
 - **Manuelle en local avant commit (`scripts/verify.ps1`) :**
   - Exécutez simplement avant de commiter pour tout valider en 1 seconde :

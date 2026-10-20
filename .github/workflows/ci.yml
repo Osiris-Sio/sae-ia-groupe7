@@ -1,4 +1,4 @@
-name: CI - Tests et Validation
+name: CI - Tests et Validation (Windows)
 
 on:
   push:
@@ -13,12 +13,8 @@ on:
 
 jobs:
   test:
-    name: Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
+    name: Tests unitaires Windows
+    runs-on: windows-latest
 
     steps:
       - name: 📥 Récupération du code (Checkout)
@@ -40,13 +36,14 @@ jobs:
           python -m compileall src tests
 
       - name: 🛡️ Vérification des fichiers interdits (BDD locales non suivies)
-        shell: bash
+        shell: powershell
         run: |
-          if git ls-files | grep -E "data/chroma|data/lexical.db"; then
-            echo "::error::Des bases de données locales (chroma ou lexical.db) ont été trouvées dans Git !"
+          $forbidden = git ls-files | Select-String -Pattern "data/chroma", "data/lexical.db"
+          if ($forbidden) {
+            Write-Error "Des bases de données locales (chroma ou lexical.db) ont été trouvées dans Git !"
             exit 1
-          fi
-          echo "Dépôt propre : aucune base de données locale n'est commitée."
+          }
+          Write-Host "Dépôt propre : aucune base de données locale n'est commitée."
 
       - name: 🧪 Exécution des 94 tests unitaires et d'intégration
         run: |

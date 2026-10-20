@@ -105,10 +105,10 @@ Avant de commiter, chaque développeur peut exécuter le script de validation :
 
 À chaque `push` ou `pull_request` sur les branches `main` et `dev` (ou manuellement via `workflow_dispatch`), GitHub Actions :
 
-1. Démarre deux machines virtuelles en parallèle : **Windows** (`windows-latest`) et **Linux** (`ubuntu-latest`).
+1. Démarre une machine virtuelle officielle **Windows** (`windows-latest`) avec PowerShell et Python 3.11.
 2. Installe Python 3.11 et les dépendances du projet (`requirements.txt`).
 3. Compile l'intégralité du code (`python -m compileall src tests`).
-4. Vérifie l'absence de fichiers interdits dans l'index Git.
+4. Vérifie l'absence de fichiers interdits dans l'index Git (contrôle PowerShell anti-fuite).
 5. Exécute les 94 tests unitaires et d'intégration.
 6. Valide ou bloque la Pull Request selon le résultat des tests.
 
