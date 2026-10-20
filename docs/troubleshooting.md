@@ -11,6 +11,7 @@ Avant de chercher plus loin, exécutez ces vérifications depuis la racine du pr
 ### A. Tester la disponibilité du serveur Ollama
 
 Le plus simple est d'interroger directement le serveur :
+
 ```powershell
 # Méthode 1 (La plus rapide avec curl)
 curl http://localhost:11434/
@@ -18,23 +19,29 @@ curl http://localhost:11434/
 ```
 
 Ou via Python en incluant le dossier `src` :
+
 ```powershell
 # Méthode 2 (En Python)
 py -3.11 -c "import sys; sys.path.insert(0, 'src'); import asyncio; from recherche_fichiers.ollama_client.base import is_server_running; print('Ollama en ligne :', asyncio.run(is_server_running()))"
 ```
-* Si `True` : Ollama est joignable.
-* Si `False` : Ollama est éteint ou inaccessible sur le port configuré (défaut `11434`).
+
+- Si `True` : Ollama est joignable.
+- Si `False` : Ollama est éteint ou inaccessible sur le port configuré (défaut `11434`).
 
 ### B. Vérifier que le modèle d'embedding est téléchargé
+
 ```powershell
 ollama list
 ```
+
 Vérifiez que `embeddinggemma` figure dans la liste.
 
 ### C. Lancer la suite de tests unitaires (sans dépendance externe)
+
 ```powershell
 py -3.11 -m unittest discover tests
 ```
+
 Tous les tests doivent afficher `OK`.
 
 ---
@@ -42,8 +49,9 @@ Tous les tests doivent afficher `OK`.
 ## 🦙 2. Problèmes liés à Ollama
 
 ### Erreur : `OllamaConnectionError: Impossible de se connecter au serveur Ollama`
-* **Cause :** Le service Ollama n'est pas lancé en arrière-plan.
-* **Solution :**
+
+- **Cause :** Le service Ollama n'est pas lancé en arrière-plan.
+- **Solution :**
   1. Lancez Ollama dans un terminal dédié :
      ```powershell
      ollama serve
@@ -55,20 +63,22 @@ Tous les tests doivent afficher `OK`.
      ```
 
 ### Erreur : `model 'embeddinggemma' not found`
-* **Cause :** Le modèle n'a pas été téléchargé en local.
-* **Solution :**
+
+- **Cause :** Le modèle n'a pas été téléchargé en local.
+- **Solution :**
   ```powershell
   ollama pull embeddinggemma
   ```
-  *(Optionnel, pour les fonctions avancées du LLM)* :
+  _(Optionnel, pour les fonctions avancées du LLM)_ :
   ```powershell
   ollama pull gemma4:12b
   ```
 
 ### Erreur : `TimeoutException` / Délai d'attente dépassé
-* **Cause :** Le modèle met du temps à se charger en mémoire lors de la toute première inférence.
-* **Solution :**
-  * Augmentez la variable `OLLAMA_TIMEOUT` dans `src/recherche_fichiers/config.py` ou via l'environnement :
+
+- **Cause :** Le modèle met du temps à se charger en mémoire lors de la toute première inférence.
+- **Solution :**
+  - Augmentez la variable `OLLAMA_TIMEOUT` dans `src/recherche_fichiers/config.py` ou via l'environnement :
     ```powershell
     $env:OLLAMA_TIMEOUT="120"
     ```
@@ -78,70 +88,91 @@ Tous les tests doivent afficher `OK`.
 ## 🐍 3. Problèmes d'Environnement Python & Imports
 
 ### Erreur : `ModuleNotFoundError: No module named 'recherche_fichiers'`
-* **Cause :** Le dossier `src/` n'était pas automatiquement dans le chemin de recherche de Python.
-* **Solutions :**
-  * **Option recommandée (lancer le fichier directement) :**
+
+- **Cause :** Le dossier `src/` n'était pas automatiquement dans le chemin de recherche de Python.
+- **Solutions :**
+  - **Option recommandée (lancer le fichier directement) :**
     ```powershell
     py -3.11 src/recherche_fichiers/ui_gradio.py
     ```
-    *(Les scripts `core.py` et `ui_gradio.py` ajoutent désormais automatiquement le dossier `src` dans `sys.path`).*
-  * **Option avec variable d'environnement :**
+    _(Les scripts `core.py` et `ui_gradio.py` ajoutent désormais automatiquement le dossier `src` dans `sys.path`)._
+  - **Option avec variable d'environnement :**
+
     ```powershell
     $env:PYTHONPATH="src"
     py -3.11 src/recherche_fichiers/ui_gradio.py
     ```
+
     py -3.11 src/recherche_fichiers/ui_gradio.py
+
+    ```
+
     ```
 
 ### Erreur : Mauvaise version de Python exécutée
-* **Cause :** Sur Windows, `python` pointe parfois sur une version globale non compatible (ex: Python 3.14 / MSYS2 / Windows Store).
-* **Solution :**
-  * Utilisez explicitement le lanceur Windows :
+
+- **Cause :** Sur Windows, `python` pointe parfois sur une version globale non compatible (ex: Python 3.14 / MSYS2 / Windows Store).
+- **Solution :**
+  - Utilisez explicitement le lanceur Windows :
     ```powershell
     py -3.11 --version
     ```
-  * Ou activez systématiquement votre environnement virtuel :
+  - Ou activez systématiquement votre environnement virtuel :
     ```powershell
     .\.venv\Scripts\Activate.ps1
     ```
 
 ---
 
-## 💾 4. Base Vectorielle ChromaDB
+## 💾 4. Bases de Données (ChromaDB & SQLite FTS5)
 
 ### Erreur : Incohérence des dimensions ou corruption de la collection
-* **Symptôme :** ChromaDB rejette l'insertion ou la recherche avec un message du type `dimensionality does not match`.
-* **Explication :** `embeddinggemma` utilise des vecteurs de dimension 768. Si une ancienne base a été initialisée avec un autre modèle, un conflit se produit.
-* **Solution (Réinitialisation propre du cache vectoriel) :**
-  Supprimez simplement le dossier de persistance pour repartir sur une base propre :
+
+- **Symptôme :** ChromaDB rejette l'insertion ou la recherche avec un message du type `dimensionality does not match`.
+- **Explication :** `embeddinggemma` utilise des vecteurs de dimension 768. Si une ancienne base a été initialisée avec un autre modèle d'IA, un conflit de dimension se produit.
+- **Solution (Réinitialisation complète des index vectoriel et lexical) :**
+  Supprimez les bases existantes pour repartir sur une base propre :
   ```powershell
-  Remove-Item -Recurse -Force data/chroma
+  # Supprimer l'ancienne base vectorielle et la base lexicale
+  Remove-Item -Recurse -Force data/chroma -ErrorAction SilentlyContinue
+  Remove-Item -Force data/lexical.db -ErrorAction SilentlyContinue
   ```
   Puis réindexez le jeu de données :
   ```powershell
   py -3.11 src/recherche_fichiers/service/core.py data/demo
   ```
 
+### Vérifier la disponibilité de SQLite FTS5
+
+- **Diagnostic en 1 ligne :**
+  ```powershell
+  py -3.11 -c "import sqlite3; cur=sqlite3.connect(':memory:').cursor(); cur.execute('CREATE VIRTUAL TABLE t USING fts5(c)'); print('SQLite', sqlite3.sqlite_version, '| FTS5 disponible : OK')"
+  ```
+- **Résultat attendu :** `SQLite 3.45.1 | FTS5 disponible : OK`
+- **Si une erreur survient :** Assurez-vous d'utiliser le Python 3.11 officiel Windows (`py -3.11`), qui compile nativement le module FTS5 sans nécessiter de DLL externe.
+
 ---
 
 ## 🌐 5. Interface Gradio (`ui_gradio.py`)
 
 ### Erreur : `OSError: [Errno 10048] Only one usage of each socket address`
-* **Cause :** Le port par défaut de Gradio (`7860`) est déjà occupé par une instance précédente restée active en arrière-plan.
-* **Solution :**
-  * Fermez l'ancien processus dans le Gestionnaire des tâches ou lancez sur un autre port via les options Gradio :
+
+- **Cause :** Le port par défaut de Gradio (`7860`) est déjà occupé par une instance précédente restée active en arrière-plan.
+- **Solution :**
+  - Fermez l'ancien processus dans le Gestionnaire des tâches ou lancez sur un autre port via les options Gradio :
     ```python
     interface.launch(server_port=7865)
     ```
 
 ### La recherche ne renvoie aucun résultat
-* **Points à vérifier :**
-  1. Avez-vous indexé les documents avant de chercher ? ChromaDB est vide par défaut au premier lancement.
+
+- **Points à vérifier :**
+  1. Avez-vous indexé les documents avant de chercher ? Les bases ChromaDB et SQLite sont vides par défaut avant la première indexation.
   2. Exécutez l'indexation de démonstration :
      ```powershell
      py -3.11 src/recherche_fichiers/service/core.py data/demo
      ```
-  3. Relancez ensuite l'interface Gradio et testez un mot-clé comme *"algorithme"* ou *"boucle"*.
+  3. Relancez ensuite l'interface Gradio et testez un mot-clé comme _"algorithme"_ ou _"boucle"_ en mode **Hybride** ou **Lexical**.
 
 ---
 
@@ -150,19 +181,20 @@ Tous les tests doivent afficher `OK`.
 Chaque composant peut être testé individuellement de manière 100% isolée (ne sollicite ni Ollama ni le réseau grâce aux mocks) :
 
 ```powershell
-# Tester la communication de base Ollama
-py -3.11 tests/test_ollama.py
+# 1. Tests Ollama (client HTTP, embeddings, LLM)
+py -3.11 tests/ollama/test_ollama.py
+py -3.11 tests/ollama/test_embedding.py
+py -3.11 tests/ollama/test_llm.py
 
-# Tester la vectorisation et le MRL
-py -3.11 tests/test_embedding.py
+# 2. Tests Stockage (ChromaDB vectoriel & SQLite FTS5 lexical)
+py -3.11 tests/storage/test_vector_store.py
+py -3.11 tests/storage/test_lexical_store.py
 
-# Tester le LLM (reformulation, synthèse, thèmes)
-py -3.11 tests/test_llm.py
+# 3. Tests Service (Pipeline core, parsing multi-formats, validation 3 modes de recherche)
+py -3.11 tests/service/test_core.py
+py -3.11 tests/service/test_utils.py
+py -3.11 tests/service/test_search.py
 
-# Tester le stockage ChromaDB
-py -3.11 tests/test_storage.py
-
-# Tester le pipeline de service et le chunking
-py -3.11 tests/test_core.py
-py -3.11 tests/test_utils.py
+# 4. Lancer la totalité de la suite (92 tests)
+py -3.11 -m unittest discover tests
 ```

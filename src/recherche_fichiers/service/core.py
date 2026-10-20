@@ -16,10 +16,15 @@ Ce module orchestre :
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-
-# Utilisation du module de logging partagé du projet (comme dans utils.py)
 import logging
+from pathlib import Path
+import sys
+
+# Permet la résolution des modules que le script soit lancé directement ou via le package
+_src_dir = Path(__file__).resolve().parents[2]
+if str(_src_dir) not in sys.path:
+    sys.path.insert(0, str(_src_dir))
+
 logger = logging.getLogger(__name__)
 
 from recherche_fichiers.service import utils
@@ -156,11 +161,7 @@ async def _index_file(file_path: Path) -> int:
     return len(ids)
 
 
-async def search_mixed(
-    query: str, 
-    mode : str = "hybrid", 
-    k    : int = 5
-) -> list[dict]:
+async def search_mixed(query: str, mode: str = "hybrid", k: int = 5) -> list[dict]:
     """
     Recherche multi-mode : oriente vers le store lexical, le store vectoriel, ou combine les deux en mode hybride.
 
@@ -177,7 +178,9 @@ async def search_mixed(
 
     mode = mode.lower()
     if mode not in {"vectorial", "lexical", "hybrid"}:
-        raise ValueError(f"Mode de recherche inconnu : '{mode}'. Valeurs acceptées : 'vectorial', 'lexical', 'hybrid'.")
+        raise ValueError(
+            f"Mode de recherche inconnu : '{mode}'. Valeurs acceptées : 'vectorial', 'lexical', 'hybrid'."
+        )
 
     # Mode 1 : Recherche vectorielle pure
     if mode == "vectorial":
@@ -211,17 +214,14 @@ async def search_mixed(
 
 
 def _reciprocal_rank_fusion(
-    vector_results : list[dict], 
-    lexical_results: list[dict], 
-    k              : int = 5, 
-    rrf_k          : int = 60
+    vector_results: list[dict], lexical_results: list[dict], k: int = 5, rrf_k: int = 60
 ) -> list[dict]:
     """
     Combine et réordonne deux listes de résultats en utilisant l'algorithme Reciprocal Rank Fusion (RRF).
     Score RRF = sum(1 / (rrf_k + rank))
     """
-    scores : dict[str, float] = {}
-    doc_map: dict[str, dict]  = {}
+    scores: dict[str, float] = {}
+    doc_map: dict[str, dict] = {}
 
     def _process_results(results_list: list[dict]):
         for rank, res in enumerate(results_list, start=1):
@@ -243,9 +243,11 @@ def _reciprocal_rank_fusion(
 
     return fused_results
 
+
 ###############################################################################################
 ### FONCTION OBSOLÈTE : A SUPPRIMER DÈS QUE TOUS LES APPELS ONT ÉTÉ NETTOYÉS DANS LE PROJET ###
 ###############################################################################################
+
 
 async def search(query: str, k: int = 5) -> list[dict]:
     """
@@ -257,9 +259,10 @@ async def search(query: str, k: int = 5) -> list[dict]:
     warnings.warn(
         "La fonction 'search' est obsolète, utilisez 'search_mixed(query, mode='vectorial', k=k)' à la place.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
     return await search_mixed(query=query, mode="vectorial", k=k)
+
 
 ###############################################################################################
 ### FONCTION OBSOLÈTE : A SUPPRIMER DÈS QUE TOUS LES APPELS ONT ÉTÉ NETTOYÉS DANS LE PROJET ###

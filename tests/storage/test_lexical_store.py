@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Permet d'importer le package situé dans le dossier src/
 # lorsque les tests sont lancés depuis la racine du projet.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from recherche_fichiers.storage.base import LexicalStore
 
@@ -31,14 +31,12 @@ class LexicalStoreTests(unittest.TestCase):
         sont correctement créées.
         """
 
-        tables = self.store.connection.execute(
-            """
+        tables = self.store.connection.execute("""
             SELECT name
             FROM sqlite_master
             WHERE name IN ('documents', 'chunks_fts')
             ORDER BY name
-            """
-        ).fetchall()
+            """).fetchall()
 
         self.assertEqual(
             [row[0] for row in tables],
@@ -222,6 +220,35 @@ class LexicalStoreTests(unittest.TestCase):
                         k=count,
                     )
 
+    def test_search_handles_punctuation_safely(self) -> None:
+        """
+        Vérifie que des caractères de ponctuation (?, !, :, quotes)
+        ne provoquent pas d'erreur de syntaxe FTS5 et retournent le document.
+        """
+        self.store.add_documents(
+            ids=["doc-1"],
+            documents=["Les examens ont lieu en juin."],
+        )
+
+        # Recherche avec un point d'interrogation ou parenthèses
+        result = self.store.search("examens ? (juin)!")
+        self.assertEqual(len(result["ids"][0]), 1)
+        self.assertEqual(result["ids"][0][0], "doc-1")
+
+    def test_search_with_only_punctuation_returns_empty(self) -> None:
+        """
+        Vérifie qu'une requête composée uniquement de ponctuation
+        retourne des listes vides sans lever d'exception.
+        """
+        self.store.add_documents(
+            ids=["doc-1"],
+            documents=["Les examens ont lieu en juin."],
+        )
+
+        result = self.store.search("??? !!!")
+        self.assertEqual(result["ids"][0], [])
+        self.assertEqual(result["documents"][0], [])
+
     def test_close_closes_connection(self) -> None:
         """
         Vérifie que la connexion SQLite peut être fermée.
@@ -233,9 +260,7 @@ class LexicalStoreTests(unittest.TestCase):
             Exception,
             "closed",
         ):
-            self.store.connection.execute(
-                "SELECT 1"
-            )
+            self.store.connection.execute("SELECT 1")
 
 
 if __name__ == "__main__":

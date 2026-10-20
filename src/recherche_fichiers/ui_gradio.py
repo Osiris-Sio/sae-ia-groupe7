@@ -9,9 +9,9 @@ if str(_src_dir) not in sys.path:
 import gradio as gr
 
 try:
-    from recherche_fichiers.service.core import search
+    from recherche_fichiers.service.core import search_mixed
 except ImportError:
-    from service.core import search
+    from service.core import search_mixed
 
 try:
     from recherche_fichiers.config import TOP_K
@@ -21,25 +21,45 @@ except (ImportError, AttributeError):
     except (ImportError, AttributeError):
         TOP_K = 5
 
+MODE_MAPPING = {
+    "Hybride (recommandé)": "hybrid",
+    "Vectoriel (Sémantique)": "vectorial",
+    "Lexical (Mots-clés)": "lexical",
+}
 
-async def rechercher(query: str):
+
+async def rechercher(query: str, mode_label: str):
     """
-    Lance une recherche sémantique et retourne
-    les résultats bruts.
+    Lance la recherche selon le mode sélectionné (Hybride, Vectoriel, Lexical)
+    et retourne les résultats formatés.
     """
-    return await search(query, k=TOP_K)
+    mode = MODE_MAPPING.get(mode_label, "hybrid")
+    return await search_mixed(query=query, mode=mode, k=TOP_K)
 
 
 interface = gr.Interface(
     fn=rechercher,
-    inputs=gr.Textbox(
-        label="Votre recherche",
-        placeholder="Entrez votre recherche..."
-    ),
-    outputs=gr.JSON(
-        label="Résultats"
-    ),
-    title="Recherche de fichiers",
+    inputs=[
+        gr.Textbox(
+            label="Votre recherche",
+            placeholder="Entrez vos mots-clés ou une question en langage naturel...",
+            lines=2,
+        ),
+        gr.Radio(
+            choices=[
+                "Hybride (recommandé)",
+                "Vectoriel (Sémantique)",
+                "Lexical (Mots-clés)",
+            ],
+            value="Hybride (recommandé)",
+            label="Mode de recherche",
+            info="Sélectionnez l'algorithme de recherche souhaité.",
+        ),
+    ],
+    outputs=gr.JSON(label="Résultats"),
+    title="🔍 Recherche de fichier",
+    description="Comparez en direct la recherche vectorielle (sens), lexicale (mots-clés SQLite FTS5) et hybride (RRF).",
+    flagging_mode="never",
 )
 
 

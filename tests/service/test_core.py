@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 # Ajout du dossier 'src' au chemin de recherche Python pour permettre l'import du package du projet
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from unittest.mock import AsyncMock, MagicMock, patch
 from recherche_fichiers.service import core
@@ -17,9 +17,10 @@ from recherche_fichiers.service import core
 # --- Tests --- #
 # ------------- #
 
+
 class TestCore(unittest.IsolatedAsyncioTestCase):
     """
-    Tests d'intégration et unitaires du service principal (core.py) avec isolation des dépendances 
+    Tests d'intégration et unitaires du service principal (core.py) avec isolation des dépendances
     externes (Ollama, VectorStore & LexicalStore) à l'aide de mocks.
     """
 
@@ -47,7 +48,7 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         file1 = self.demo_dir / "note1.txt"
         file2 = self.demo_dir / "note2.md"
         mock_list_files.return_value = [file1, file2]
-        
+
         # Simulation du nombre de chunks renvoyés par fichier indexé (2 pour le premier, 3 pour le second)
         mock_index_file.side_effect = [2, 3]
 
@@ -62,7 +63,13 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
     @patch("recherche_fichiers.service.core._get_vector_store")
     @patch("recherche_fichiers.service.core.get_embedding", new_callable=AsyncMock)
     @patch("recherche_fichiers.service.utils.load_file_content")
-    async def test_index_file_success(self, mock_load, mock_get_embedding, mock_get_vector_store, mock_get_lexical_store):
+    async def test_index_file_success(
+        self,
+        mock_load,
+        mock_get_embedding,
+        mock_get_vector_store,
+        mock_get_lexical_store,
+    ):
         """
         Vérifie la chaîne complète d'indexation d'un fichier :
         Chargement multi-format -> Découpage -> Vectorisation -> Enregistrement dans les stores vectoriel et lexical.
@@ -70,11 +77,11 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         file_path = self.demo_dir / "note.pdf"
         mock_load.return_value = "Ceci est un test de contenu PDF."
         mock_get_embedding.return_value = [0.1, 0.2, 0.3]
-        
+
         # Mocks des stores de stockage pour intercepter les appels d'écriture
         mock_vec_store = MagicMock()
         mock_get_vector_store.return_value = mock_vec_store
-        
+
         mock_lex_store = MagicMock()
         mock_get_lexical_store.return_value = mock_lex_store
 
@@ -94,7 +101,7 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         mock_load.side_effect = Exception("Erreur d'accès fichier")
 
         chunks_indexed = await core._index_file(file_path)
-        
+
         # Aucun chunk ne doit être indexé et la fonction doit renvoyer 0 proprement
         self.assertEqual(chunks_indexed, 0)
 
@@ -105,7 +112,7 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         mock_load.return_value = "   \n  "
 
         chunks_indexed = await core._index_file(file_path)
-        
+
         # Le fichier vide ne génère aucun chunk
         self.assertEqual(chunks_indexed, 0)
 
@@ -113,21 +120,33 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
     @patch("recherche_fichiers.service.core._get_vector_store")
     @patch("recherche_fichiers.service.core.get_embedding", new_callable=AsyncMock)
     @patch("recherche_fichiers.service.utils.load_file_content")
-    async def test_index_file_embedding_error(self, mock_load, mock_get_embedding, mock_get_vector_store, mock_get_lexical_store):
+    async def test_index_file_embedding_error(
+        self,
+        mock_load,
+        mock_get_embedding,
+        mock_get_vector_store,
+        mock_get_lexical_store,
+    ):
         """Vérifie qu'un échec d'embedding sur un chunk spécifique est géré (le chunk est ignoré mais l'indexation continue)."""
         file_path = self.demo_dir / "multi.csv"
         mock_load.return_value = "Ligne une\nLigne deux"
-        
+
         # Simulation : échec sur le premier chunk (Ollama down), succès sur le second
-        mock_get_embedding.side_effect = [Exception("Ollama indisponible"), [0.4, 0.5, 0.6]]
-        
+        mock_get_embedding.side_effect = [
+            Exception("Ollama indisponible"),
+            [0.4, 0.5, 0.6],
+        ]
+
         mock_vec_store = MagicMock()
         mock_get_vector_store.return_value = mock_vec_store
         mock_lex_store = MagicMock()
         mock_get_lexical_store.return_value = mock_lex_store
 
         # Forçage du découpage en 2 chunks distincts pour tester la tolérance aux pannes partielles
-        with patch("recherche_fichiers.service.utils.chunk_text", return_value=["Chunk 1", "Chunk 2"]):
+        with patch(
+            "recherche_fichiers.service.utils.chunk_text",
+            return_value=["Chunk 1", "Chunk 2"],
+        ):
             chunks_indexed = await core._index_file(file_path)
 
         # Seul le second chunk a pu être indexé (1 succès sur 2)
@@ -147,7 +166,9 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
 
     @patch("recherche_fichiers.service.core._get_vector_store")
     @patch("recherche_fichiers.service.core.get_embedding", new_callable=AsyncMock)
-    async def test_search_mixed_vectorial(self, mock_get_embedding, mock_get_vector_store):
+    async def test_search_mixed_vectorial(
+        self, mock_get_embedding, mock_get_vector_store
+    ):
         """Vérifie le bon fonctionnement de la recherche en mode vectoriel pur."""
         mock_get_embedding.return_value = [0.1, 0.2, 0.3]
         mock_store = MagicMock()
@@ -155,7 +176,7 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         mock_store.search.return_value = {
             "documents": [["Résultat vectoriel"]],
             "metadatas": [[{"source_path": "data/demo/note.txt", "chunk_index": 0}]],
-            "scores": [[0.05]]
+            "scores": [[0.05]],
         }
         mock_get_vector_store.return_value = mock_store
 
@@ -174,7 +195,7 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         mock_store.search.return_value = {
             "documents": [["Résultat lexical"]],
             "metadatas": [[{"source_path": "data/demo/note.txt", "chunk_index": 1}]],
-            "scores": [[1.5]]
+            "scores": [[1.5]],
         }
         mock_get_lexical_store.return_value = mock_store
 
@@ -188,16 +209,23 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
     @patch("recherche_fichiers.service.core._get_lexical_store")
     @patch("recherche_fichiers.service.core._get_vector_store")
     @patch("recherche_fichiers.service.core.get_embedding", new_callable=AsyncMock)
-    async def test_search_mixed_hybrid(self, mock_get_embedding, mock_get_vector_store, mock_get_lexical_store):
+    async def test_search_mixed_hybrid(
+        self, mock_get_embedding, mock_get_vector_store, mock_get_lexical_store
+    ):
         """Vérifie le mode hybride combinant les résultats sémantiques et lexicaux via l'algorithme RRF (Reciprocal Rank Fusion)."""
         mock_get_embedding.return_value = [0.1, 0.2, 0.3]
-        
+
         # Configuration des résultats vectoriels fictifs
         mock_vec_store = MagicMock()
         mock_vec_store.search.return_value = {
             "documents": [["Doc commun", "Doc vecteur"]],
-            "metadatas": [[{"source_path": "a.txt", "chunk_index": 0}, {"source_path": "b.txt", "chunk_index": 0}]],
-            "scores": [[0.1, 0.2]]
+            "metadatas": [
+                [
+                    {"source_path": "a.txt", "chunk_index": 0},
+                    {"source_path": "b.txt", "chunk_index": 0},
+                ]
+            ],
+            "scores": [[0.1, 0.2]],
         }
         mock_get_vector_store.return_value = mock_vec_store
 
@@ -205,8 +233,13 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         mock_lex_store = MagicMock()
         mock_lex_store.search.return_value = {
             "documents": [["Doc commun", "Doc lexical"]],
-            "metadatas": [[{"source_path": "a.txt", "chunk_index": 0}, {"source_path": "c.txt", "chunk_index": 0}]],
-            "scores": [[1.0, 0.5]]
+            "metadatas": [
+                [
+                    {"source_path": "a.txt", "chunk_index": 0},
+                    {"source_path": "c.txt", "chunk_index": 0},
+                ]
+            ],
+            "scores": [[1.0, 0.5]],
         }
         mock_get_lexical_store.return_value = mock_lex_store
 
@@ -222,14 +255,16 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
     async def test_deprecated_search_wrapper(self, mock_search_mixed):
         """Vérifie que l'ancienne fonction `search` émet correctement un avertissement (DeprecationWarning) et redirige vers `search_mixed`."""
         mock_search_mixed.return_value = [{"content": "test"}]
-        
+
         # Capture de l'avertissement d'obsolescence lors de l'appel
         with self.assertWarns(DeprecationWarning):
             results = await core.search("requête", k=3)
 
         # Vérification de la rétrocompatibilité et de la transmission des bons arguments
         self.assertEqual(len(results), 1)
-        mock_search_mixed.assert_awaited_once_with(query="requête", mode="vectorial", k=3)
+        mock_search_mixed.assert_awaited_once_with(
+            query="requête", mode="vectorial", k=3
+        )
 
 
 if __name__ == "__main__":

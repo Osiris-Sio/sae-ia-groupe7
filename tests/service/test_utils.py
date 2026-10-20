@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Ajout du dossier 'src' au chemin de recherche Python
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import unittest
 from unittest.mock import patch, MagicMock
@@ -16,9 +16,10 @@ from recherche_fichiers.service import utils
 # --- Tests --- #
 # ------------- #
 
+
 class TestUtils(unittest.TestCase):
     """
-    Tests unitaires pour les fonctions utilitaires de traitement de fichiers multi-formats, 
+    Tests unitaires pour les fonctions utilitaires de traitement de fichiers multi-formats,
     de découpage de texte (chunking) et de formatage des résultats.
     """
 
@@ -43,40 +44,43 @@ class TestUtils(unittest.TestCase):
             content = utils.read_text_file(test_file)
             self.assertIsInstance(content, str)
 
-    @patch("pdfplumber.open")
-    def test_read_pdf_file(self, mock_pdf_open):
+    def test_read_pdf_file(self):
         """Vérifie l'extraction de texte depuis un fichier PDF."""
+        mock_pdfplumber = MagicMock()
         mock_page = MagicMock()
         mock_page.extract_text.return_value = "Texte extrait de la page PDF."
         mock_pdf_instance = MagicMock()
         mock_pdf_instance.pages = [mock_page]
-        mock_pdf_open.return_value.__enter__.return_value = mock_pdf_instance
+        mock_pdfplumber.open.return_value.__enter__.return_value = mock_pdf_instance
 
-        content = utils.read_pdf_file(Path("dummy.pdf"))
-        self.assertIn("Texte extrait", content)
+        with patch.dict("sys.modules", {"pdfplumber": mock_pdfplumber}):
+            content = utils.read_pdf_file(Path("dummy.pdf"))
+            self.assertIn("Texte extrait", content)
 
-    @patch("docx.Document")
-    def test_read_docx_file(self, mock_docx):
+    def test_read_docx_file(self):
         """Vérifie l'extraction de texte et de tableaux depuis un fichier DOCX."""
+        mock_docx = MagicMock()
         mock_doc = MagicMock()
         p1 = MagicMock()
         p1.text = "Paragraphe Word."
         mock_doc.paragraphs = [p1]
         mock_doc.tables = []
-        mock_docx.return_value = mock_doc
+        mock_docx.Document.return_value = mock_doc
 
-        content = utils.read_docx_file(Path("dummy.docx"))
-        self.assertEqual(content, "Paragraphe Word.")
+        with patch.dict("sys.modules", {"docx": mock_docx}):
+            content = utils.read_docx_file(Path("dummy.docx"))
+            self.assertEqual(content, "Paragraphe Word.")
 
-    @patch("pandas.read_csv")
-    def test_read_csv_file(self, mock_read_csv):
+    def test_read_csv_file(self):
         """Vérifie l'extraction de texte depuis un fichier CSV via pandas."""
+        mock_pandas = MagicMock()
         mock_df = MagicMock()
         mock_df.to_string.return_value = "col1 | col2\nval1 | val2"
-        mock_read_csv.return_value = mock_df
+        mock_pandas.read_csv.return_value = mock_df
 
-        content = utils.read_csv_file(Path("dummy.csv"))
-        self.assertIn("col1 | col2", content)
+        with patch.dict("sys.modules", {"pandas": mock_pandas}):
+            content = utils.read_csv_file(Path("dummy.csv"))
+            self.assertIn("col1 | col2", content)
 
     def test_load_file_content_unsupported(self):
         """Vérifie qu'un format de fichier non pris en charge lève une exception ValueError."""
@@ -111,11 +115,13 @@ class TestUtils(unittest.TestCase):
         """Vérifie la transformation de la structure brute avec 'distances' (VectorStore)."""
         raw_results = {
             "documents": [["Contenu chunk 0", "Contenu chunk 1"]],
-            "metadatas": [[
-                {"source_path": "data/demo/note.txt", "chunk_index": 0},
-                {"source_path": "data/demo/note.txt", "chunk_index": 1}
-            ]],
-            "distances": [[0.12, 0.45]]
+            "metadatas": [
+                [
+                    {"source_path": "data/demo/note.txt", "chunk_index": 0},
+                    {"source_path": "data/demo/note.txt", "chunk_index": 1},
+                ]
+            ],
+            "distances": [[0.12, 0.45]],
         }
 
         formatted = utils.format_search_results(raw_results)
@@ -129,7 +135,7 @@ class TestUtils(unittest.TestCase):
         raw_results = {
             "documents": [["Contenu lexical"]],
             "metadatas": [[{"source_path": "data/demo/note.md", "chunk_index": 0}]],
-            "scores": [[1.85]]
+            "scores": [[1.85]],
         }
 
         formatted = utils.format_search_results(raw_results)

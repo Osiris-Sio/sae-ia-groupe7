@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 from pathlib import Path
 
@@ -19,23 +20,19 @@ class LexicalStore:
         self.connection = sqlite3.connect(persist_path)
 
         # Crée la table qui conserve le texte et les métadonnées des chunks.
-        self.connection.execute(
-            """
+        self.connection.execute("""
             CREATE TABLE IF NOT EXISTS documents (
                 id TEXT PRIMARY KEY,
                 content TEXT NOT NULL,
                 metadata TEXT
             )
-            """
-        )
+            """)
 
         # Crée l'index lexical FTS5 utilisé pour la recherche.
-        self.connection.execute(
-            """
+        self.connection.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts
             USING fts5(id UNINDEXED, content)
-            """
-        )
+            """)
 
         # Enregistre la création des tables.
         self.connection.commit()
@@ -54,15 +51,11 @@ class LexicalStore:
 
         # Vérifie que les listes ont la même longueur.
         if len(ids) != len(documents):
-            raise ValueError(
-                "ids et documents doivent avoir la même longueur."
-            )
+            raise ValueError("ids et documents doivent avoir la même longueur.")
 
         # Vérifie qu'il y a une métadonnée par chunk.
         if metadatas is not None and len(metadatas) != len(ids):
-            raise ValueError(
-                "metadatas doit avoir la même longueur que ids."
-            )
+            raise ValueError("metadatas doit avoir la même longueur que ids.")
 
         # Convertit les métadonnées en JSON pour les enregistrer dans SQLite.
         metadata_values = (
@@ -89,19 +82,36 @@ class LexicalStore:
         if k <= 0:
             raise ValueError("k doit être supérieur à 0.")
 
-        # Recherche les chunks correspondants et les classe avec BM25.
-        rows = self.connection.execute(
-            """
-            SELECT chunks_fts.id, chunks_fts.content, documents.metadata,
-                   bm25(chunks_fts) AS score
-            FROM chunks_fts
-            JOIN documents ON documents.id = chunks_fts.id
-            WHERE chunks_fts MATCH ?
-            ORDER BY score
-            LIMIT ?
-            """,
-            (query, k),
-        ).fetchall()
+        # Nettoyage des mots pour éviter les erreurs de syntaxe SQLite FTS5
+        # (ex: ponctuation isolée comme '?', parenthèses, guillemets).
+        tokens = re.findall(r"\w+", query)
+        if not tokens:
+            return {
+                "ids": [[]],
+                "documents": [[]],
+                "metadatas": [[]],
+                "scores": [[]],
+            }
+
+        # Encadrement de chaque token pour forcer une recherche de termes littéraux sécurisée.
+        safe_query = " ".join(f'"{token}"' for token in tokens)
+
+        try:
+            # Recherche les chunks correspondants et les classe avec BM25.
+            rows = self.connection.execute(
+                """
+                SELECT chunks_fts.id, chunks_fts.content, documents.metadata,
+                       bm25(chunks_fts) AS score
+                FROM chunks_fts
+                JOIN documents ON documents.id = chunks_fts.id
+                WHERE chunks_fts MATCH ?
+                ORDER BY score
+                LIMIT ?
+                """,
+                (safe_query, k),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            rows = []
 
         # Renvoie les résultats dans une structure similaire à VectorStore.
         return {
@@ -132,9 +142,7 @@ class VectorStore:
         self.client = chromadb.PersistentClient(path=persist_path)
 
         # Récupère ou crée la collection.
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name
-        )
+        self.collection = self.client.get_or_create_collection(name=collection_name)
 
     def add_documents(
         self,
@@ -152,21 +160,14 @@ class VectorStore:
             return
 
         # Vérifie que les listes ont la même longueur.
-        if not (
-            len(ids)
-            == len(documents)
-            == len(embeddings)
-        ):
+        if not (len(ids) == len(documents) == len(embeddings)):
             raise ValueError(
-                "ids, documents et embeddings doivent avoir "
-                "la même longueur."
+                "ids, documents et embeddings doivent avoir " "la même longueur."
             )
 
         # Vérifie qu'il y a une métadonnée par chunk.
         if metadatas is not None and len(metadatas) != len(ids):
-            raise ValueError(
-                "metadatas doit avoir la même longueur que ids."
-            )
+            raise ValueError("metadatas doit avoir la même longueur que ids.")
 
         # Ajoute les données dans ChromaDB.
         self.collection.add(
