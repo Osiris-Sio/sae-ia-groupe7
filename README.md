@@ -56,7 +56,7 @@ Vous pouvez inspecter, visualiser et explorer l'intégralité de ce dépôt via 
   - Extraction multi-formats : **PDF** (`pdfplumber`), **Word** (`python-docx`), **CSV** (`pandas`), en plus de `.txt` et `.md` (`service/utils.py`).
   - Synchronisation stricte des `chunk_id` entre ChromaDB et SQLite (`service/core.py`).
   - Moteur de recherche unifié `search_mixed()` avec 3 modes (Vectoriel, Lexical, Hybride avec algorithme RRF).
-  - Sélecteur de mode via `gr.Radio` dans l'interface web Gradio (`ui_gradio.py`).
+  - Sélection multiple des modes de recherche dans l'interface Gradio (`ui_gradio.py`), avec affichage vertical des seuls modes sélectionnés.
   - Dataset de démonstration complet dans `data/demo/` couvrant les 5 formats.
   - **94 tests automatiques** organisés en sous-dossiers (`tests/ollama/`, `tests/storage/`, `tests/service/`).
 - 🟡 **Sprint 3 (À venir) :** Re-ranking, filtres avancés et fonctionnalités documentaires augmentées.
@@ -103,7 +103,7 @@ py -3.11 src/recherche_fichiers/service/core.py data/demo
 py -3.11 src/recherche_fichiers/ui_gradio.py
 ```
 
-L'application s'ouvre dans votre navigateur à l'adresse : **http://127.0.0.1:7860**. Vous pouvez y choisir votre mode de recherche (**Hybride**, **Vectoriel** ou **Lexical**) via les boutons radio.
+L'application s'ouvre dans votre navigateur à l'adresse : **http://127.0.0.1:7860**. Vous pouvez choisir un ou plusieurs modes (**Hybride**, **Vectoriel** et/ou **Lexical**) ; seuls leurs résultats s'affichent les uns sous les autres.
 
 ---
 
