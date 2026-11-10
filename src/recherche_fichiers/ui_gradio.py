@@ -2,6 +2,7 @@ import asyncio
 from html import escape
 import sys
 from pathlib import Path
+import re
 
 # Permet la résolution des modules que le script soit lancé directement ou via -m
 _src_dir = Path(__file__).resolve().parent.parent
@@ -29,11 +30,38 @@ MODE_MAPPING = {
     "Lexical (Mots-clés)": "lexical",
 }
 
+def highlight_passage(content: str, query: str) -> str:
+    """Surligne les termes de la recherche ou les passages pertinents de manière optimisée."""
+    if not content:
+        return ""
+    
+    escaped_content = escape(str(content))
+    if not query or not str(query).strip():
+        return escaped_content
+    
+    words = set(query.strip().split())
+    highlighted = escaped_content
+    
+    for word in words:
+        if len(word) > 2:
+            try:
+                pattern = re.compile(re.escape(word), re.IGNORECASE)
+                highlighted = pattern.sub(
+                    r'<mark style="background-color: #f0c988; padding: 2px 4px; border-radius: 4px; color: black">\g<0></mark>',
+                    highlighted
+                )
+            except Exception:
+                # En cas de pattern invalide généré par regex
+                continue
+                
+    return highlighted
+
 def format_results_html(
     selected_modes: list[str],
     results_by_label: dict[str, list[dict]],
+    query: str = "",
 ) -> str:
-    """Affiche les modes sélectionnés dans des panneaux empilés."""
+    """Affiche les modes sélectionnés dans des panneaux empilés avec surbrillance."""
     selected_mode_set = set(selected_modes)
     selected_labels = [label for label in MODE_MAPPING if label in selected_mode_set]
     if not selected_labels:
@@ -46,11 +74,12 @@ def format_results_html(
             rows = ""
             for result in results:
                 score = f"{float(result.get('score') or 0.0):.4f}"
+                content_html = highlight_passage(str(result.get('content') or ''), query)
                 rows += (
                     "<tr>"
                     f"<td>{escape(str(result.get('source_path') or ''))}</td>"
                     f"<td>{escape(score)}</td>"
-                    f"<td>{escape(str(result.get('content') or ''))}</td>"
+                    f"<td>{content_html}</td>"
                     "</tr>"
                 )
         else:
@@ -80,7 +109,7 @@ def format_results_html(
 
 
 async def rechercher(query: str, selected_modes: list[str] | None) -> str:
-    """Recherche dans les modes sélectionnés et affiche uniquement leurs résultats."""
+    """Recherche dans les modes sélectionnés et affiche uniquement leurs résultats avec surbrillance."""
     if not query or not query.strip():
         return "<p>Entrez une recherche.</p>"
 
@@ -91,14 +120,14 @@ async def rechercher(query: str, selected_modes: list[str] | None) -> str:
         if label in selected_labels
     ]
     if not modes:
-        return format_results_html([], {})
+        return format_results_html([], {}, query)
 
     mode_results = await asyncio.gather(
         *(search_mixed(query=query, mode=mode, k=TOP_K) for _, mode in modes)
     )
     results_by_label = dict(zip((label for label, _ in modes), mode_results))
 
-    return format_results_html(selected_labels, results_by_label)
+    return format_results_html(selected_labels, results_by_label, query)
 
 
 with gr.Blocks() as interface:
