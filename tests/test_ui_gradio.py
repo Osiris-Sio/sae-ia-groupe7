@@ -14,15 +14,17 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
     """
     Tests unitaires de la recherche dans l'interface Gradio.
 
-    Les appels au moteur de recherche sont simulés afin de tester
+    Les appels au moteur de recherche et au LLM sont simulés afin de tester
     le comportement de l'interface sans effectuer de vraies recherches.
     """
 
-    async def test_rechercher_displays_only_selected_modes(self):
+    @patch("recherche_fichiers.ui_gradio.synthesize", new_callable=AsyncMock)
+    async def test_rechercher_displays_only_selected_modes(self, mock_synthesize):
         """
         Vérifie que seuls les modes sélectionnés sont exécutés
         et affichés, et que le contenu est correctement échappé en HTML.
         """
+        mock_synthesize.return_value = "Description LLM générée"
 
         # Simule une recherche et retourne un résultat fictif.
         async def search_side_effect(query, mode, k):
@@ -43,10 +45,11 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
             side_effect=search_side_effect,
         ) as search:
 
-            # Lance une recherche avec les modes lexical et vectoriel.
+            # Lance une recherche avec les modes lexical et vectoriel (descriptions LLM activées).
             result = await ui_gradio.rechercher(
                 "ma recherche",
                 ["Lexical (Mots-clés)", "Vectoriel (Sémantique)"],
+                True,
             )
 
         # Vérifie que le moteur a été appelé deux fois.
@@ -66,11 +69,9 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
         # Vérifie que les caractères spéciaux du contenu sont échappés.
         self.assertIn("Résultat &lt;important&gt;", result)
 
-        # Vérifie que la synthèse et les informations de fragments
-        # ne sont pas affichées dans les résultats.
-        self.assertNotIn("Synthèse", result)
-        self.assertNotIn("<th>Chunk</th>", result)
-        self.assertNotIn("<td>0</td>", result)
+        # Vérifie que la description LLM est bien présente.
+        self.assertIn("Description LLM :", result)
+        self.assertIn("Description LLM générée", result)
 
     async def test_rechercher_requires_at_least_one_mode(self):
         """
@@ -82,7 +83,7 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(
             ui_gradio, "search_mixed", new_callable=AsyncMock
         ) as search:
-            result = await ui_gradio.rechercher("ma recherche", [])
+            result = await ui_gradio.rechercher("ma recherche", [], True)
 
         # Vérifie le message affiché à l'utilisateur.
         self.assertIn("Sélectionnez au moins un mode", result)
@@ -100,7 +101,7 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(
             ui_gradio, "search_mixed", new_callable=AsyncMock
         ) as search:
-            result = await ui_gradio.rechercher(" ", ["Lexical (Mots-clés)"])
+            result = await ui_gradio.rechercher(" ", ["Lexical (Mots-clés)"], True)
 
         # Vérifie le message demandant de saisir une recherche.
         self.assertIn("Entrez une recherche", result)
@@ -122,6 +123,9 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
                 "Hybride (recommandé)": [],
                 "Lexical (Mots-clés)": [],
             },
+            {},
+            query="",
+            enable_llm_desc=True,
         )
 
         # Vérifie que seul le panneau sélectionné est affiché.

@@ -275,6 +275,20 @@ class LLMClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("les boucles", call["prompt"])
         self.assertEqual(call["temperature"], 0.3)
 
+    @patch("recherche_fichiers.ollama_client.llm.LLMClient.summarize_documents", new_callable=AsyncMock)
+    async def test_standalone_summarize_documents_function(self, mock_client_summarize):
+        """Vérifie que la fonction autonome summarize_documents() délègue correctement au LLMClient."""
+        mock_client_summarize.return_value = "synthèse autonome"
+
+        from recherche_fichiers.ollama_client.llm import summarize_documents as standalone_summarize
+        
+        result = await standalone_summarize(["texte 1", "texte 2"], query="recherche test")
+
+        self.assertEqual(result, "synthèse autonome")
+        mock_client_summarize.assert_awaited_once_with(
+            contents=["texte 1", "texte 2"],
+            query="recherche test"
+        )
 
 # Lancement des tests
 if __name__ == "__main__":

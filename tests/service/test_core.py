@@ -172,7 +172,6 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         """Vérifie le bon fonctionnement de la recherche en mode vectoriel pur."""
         mock_get_embedding.return_value = [0.1, 0.2, 0.3]
         mock_store = MagicMock()
-        # Structure de retour brute attendue par l'utilitaire de formatage (listes imbriquées)
         mock_store.search.return_value = {
             "documents": [["Résultat vectoriel"]],
             "metadatas": [[{"source_path": "data/demo/note.txt", "chunk_index": 0}]],
@@ -182,7 +181,6 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
 
         results = await core.search_mixed("exercice", mode="vectorial", k=1)
 
-        # Vérification des résultats formatés retournés au client
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["content"], "Résultat vectoriel")
         mock_get_embedding.assert_awaited_once_with("exercice")
@@ -201,7 +199,6 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
 
         results = await core.search_mixed("exercice", mode="lexical", k=1)
 
-        # Vérification du contenu et de l'appel au store lexical sans embedding préalable
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["content"], "Résultat lexical")
         mock_store.search.assert_called_once_with(query="exercice", k=1)
@@ -212,10 +209,9 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
     async def test_search_mixed_hybrid(
         self, mock_get_embedding, mock_get_vector_store, mock_get_lexical_store
     ):
-        """Vérifie le mode hybride combinant les résultats sémantiques et lexicaux via l'algorithme RRF (Reciprocal Rank Fusion)."""
+        """Vérifie le mode hybride combinant sémantique et lexical via RRF."""
         mock_get_embedding.return_value = [0.1, 0.2, 0.3]
 
-        # Configuration des résultats vectoriels fictifs
         mock_vec_store = MagicMock()
         mock_vec_store.search.return_value = {
             "documents": [["Doc commun", "Doc vecteur"]],
@@ -229,7 +225,6 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         }
         mock_get_vector_store.return_value = mock_vec_store
 
-        # Configuration des résultats lexicaux fictifs
         mock_lex_store = MagicMock()
         mock_lex_store.search.return_value = {
             "documents": [["Doc commun", "Doc lexical"]],
@@ -243,28 +238,76 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         }
         mock_get_lexical_store.return_value = mock_lex_store
 
-        # Exécution de la recherche hybride
         results = await core.search_mixed("test", mode="hybrid", k=2)
 
-        # Validation : au moins un résultat fusionné doit être retourné
         self.assertGreaterEqual(len(results), 1)
-        # Le "Doc commun" (présent dans les deux listes) doit remonter en première position grâce au bonus RRF
         self.assertEqual(results[0]["source_path"], "a.txt")
 
     @patch("recherche_fichiers.service.core.search_mixed", new_callable=AsyncMock)
     async def test_deprecated_search_wrapper(self, mock_search_mixed):
-        """Vérifie que l'ancienne fonction `search` émet correctement un avertissement (DeprecationWarning) et redirige vers `search_mixed`."""
+        """Vérifie que l'ancienne fonction `search` émet un avertissement et redirige vers `search_mixed`."""
         mock_search_mixed.return_value = [{"content": "test"}]
 
-        # Capture de l'avertissement d'obsolescence lors de l'appel
         with self.assertWarns(DeprecationWarning):
             results = await core.search("requête", k=3)
 
-        # Vérification de la rétrocompatibilité et de la transmission des bons arguments
         self.assertEqual(len(results), 1)
         mock_search_mixed.assert_awaited_once_with(
             query="requête", mode="vectorial", k=3
         )
+
+    # -------------------------------------------------------------------------
+    # Tests mis à jour pour la fonction `synthesize` (basée sur `summarize_documents`)
+    # -------------------------------------------------------------------------
+
+    @patch("recherche_fichiers.service.core.summarize_documents", new_callable=AsyncMock)
+    async def test_synthesize_success(self, mock_summarize):
+        """Vérifie le bon fonctionnement de la synthèse avec des chunks valides et un appel réussi au service de résumé."""
+        mock_summarize.return_value = "Voici la synthèse basée sur les sources."
+        chunks = [
+            {
+                "source_path": "data/demo/note.txt",
+                "chunk_index": 0,
+                "content": "Ceci est un contenu de test pour la synthèse.",
+            }
+        ]
+
+        result = await core.synthesize("Quelle est la question ?", chunks)
+
+        self.assertIn("synthèse", result)
+        mock_summarize.assert_awaited_once()
+        
+        # Vérification que summarize_documents a bien reçu les bons arguments (contents et query)
+        _, kwargs = mock_summarize.call_args
+        self.assertEqual(kwargs.get("query"), "Quelle est la question ?")
+        contents_passed = kwargs.get("contents", [])
+        self.assertTrue(any("data/demo/note.txt" in c for c in contents_passed))
+        self.assertTrue(any("Ceci est un contenu de test" in c for c in contents_passed))
+
+    async def test_synthesize_empty_query(self):
+        """Vérifie qu'une requête vide ou constituée d'espaces renvoie le message par défaut sans appeler le service LLM."""
+        chunks = [{"source_path": "a.txt", "chunk_index": 0, "content": "test"}]
+        
+        result = await core.synthesize("   ", chunks)
+        
+        self.assertEqual(result, "Aucun contenu pertinent n'a été trouvé pour générer une synthèse.")
+
+    async def test_synthesize_empty_chunks(self):
+        """Vérifie qu'une liste de chunks vide renvoie le message par défaut sans appeler le service LLM."""
+        result = await core.synthesize("Quelle est la question ?", [])
+        
+        self.assertEqual(result, "Aucun contenu pertinent n'a été trouvé pour générer une synthèse.")
+
+    @patch("recherche_fichiers.service.core.summarize_documents", new_callable=AsyncMock)
+    async def test_synthesize_generation_error(self, mock_summarize):
+        """Vérifie la gestion des erreurs en cas d'échec du service de résumé (ex: Ollama indisponible)."""
+        mock_summarize.side_effect = Exception("Ollama hors ligne")
+        chunks = [{"source_path": "a.txt", "chunk_index": 0, "content": "test"}]
+
+        result = await core.synthesize("Quelle est la question ?", chunks)
+
+        self.assertIn("Erreur lors de la génération de la synthèse", result)
+        self.assertIn("Ollama hors ligne", result)
 
 
 if __name__ == "__main__":
