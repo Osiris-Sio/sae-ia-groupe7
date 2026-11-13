@@ -12,9 +12,9 @@ if str(_src_dir) not in sys.path:
 import gradio as gr
 
 try:
-    from recherche_fichiers.service.core import search_mixed
+    from recherche_fichiers.service.core import search_mixed, synthesize
 except ImportError:
-    from service.core import search_mixed
+    from service.core import search_mixed, synthesize
 
 try:
     from recherche_fichiers.config import TOP_K
@@ -56,12 +56,43 @@ def highlight_passage(content: str, query: str) -> str:
                 
     return highlighted
 
+def render_simple_markdown(text: str) -> str:
+    """Convertit basiquement le texte (gras, italique) sans bibliothèque externe tout en restant sécurisé."""
+    if not text:
+        return ""
+    safe_text = escape(str(text))
+    # Gras (**texte** ou __texte__)
+    safe_text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', safe_text)
+    safe_text = re.sub(r'__(.*?)__', r'<strong>\1</strong>', safe_text)
+    # Italique (*texte* ou _texte_)
+    safe_text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', safe_text)
+    safe_text = re.sub(r'_(.*?)_', r'<em>\1</em>', safe_text)
+    # Sauts de ligne
+    safe_text = safe_text.replace('\n', '<br>')
+    return safe_text
+
+async def generate_chunk_description(query: str, result: dict) -> str:
+    """Génère une description/résumé LLM spécifique pour un chunk donné."""
+    content = result.get('content', '')
+    source = result.get('source_path', 'Inconnu')
+    if not content.strip():
+        return "Pas de contenu à décrire."
+    
+    try:
+        # On réutilise la fonction synthesize pour générer la description unitaire
+        desc = await synthesize(query, [{"source_path": source, "chunk_index": result.get("chunk_index", 0), "content": content}])
+        return desc
+    except Exception:
+        return "Erreur lors de la génération de la description."
+
 def format_results_html(
     selected_modes: list[str],
     results_by_label: dict[str, list[dict]],
+    descriptions_by_label: dict[str, dict[int, str]],
     query: str = "",
+    enable_llm_desc: bool = True,
 ) -> str:
-    """Affiche les modes sélectionnés dans des panneaux empilés avec surbrillance."""
+    """Affiche les modes sélectionnés dans des panneaux empilés avec surbrillance et description LLM optionnelle par résultat."""
     selected_mode_set = set(selected_modes)
     selected_labels = [label for label in MODE_MAPPING if label in selected_mode_set]
     if not selected_labels:
@@ -70,16 +101,32 @@ def format_results_html(
     panels = []
     for label in selected_labels:
         results = results_by_label.get(label, [])
+        mode_descs = descriptions_by_label.get(label, {})
         if results:
             rows = ""
-            for result in results:
+            for idx, result in enumerate(results):
                 score = f"{float(result.get('score') or 0.0):.4f}"
                 content_html = highlight_passage(str(result.get('content') or ''), query)
+                
+                # Construction de la cellule contenu (+ description LLM si activée)
+                cell_content = ""
+                if enable_llm_desc:
+                    raw_llm_desc = mode_descs.get(idx, "En attente de description...")
+                    llm_desc_html = render_simple_markdown(raw_llm_desc)
+                    cell_content += (
+                        "<div style='margin-bottom:10px;padding:8px 12px;background-color:#27272a;"
+                        "border-left:3px solid #ea580c;border-radius:4px;color:#1e293b;font-size:0.95em;'>"
+                        "<strong style='display:block;margin-bottom:4px;color:#ea580c;'>Description LLM :</strong>"
+                        f"<div>{llm_desc_html}</div>"
+                        "</div>"
+                    )
+                cell_content += content_html
+
                 rows += (
                     "<tr>"
                     f"<td>{escape(str(result.get('source_path') or ''))}</td>"
                     f"<td>{escape(score)}</td>"
-                    f"<td>{content_html}</td>"
+                    f"<td>{cell_content}</td>"
                     "</tr>"
                 )
         else:
@@ -95,7 +142,7 @@ def format_results_html(
             '<thead><tr>'
             '<th style="width:24%">Source</th>'
             '<th style="width:12%">Score</th>'
-            '<th style="width:64%">Contenu</th>'
+            '<th style="width:64%">Contenu & Description LLM</th>'
             '</tr></thead>'
             f'<tbody>{rows}</tbody>'
             '</table></div></section>'
@@ -108,8 +155,8 @@ def format_results_html(
     )
 
 
-async def rechercher(query: str, selected_modes: list[str] | None) -> str:
-    """Recherche dans les modes sélectionnés et affiche uniquement leurs résultats avec surbrillance."""
+async def rechercher(query: str, selected_modes: list[str] | None, enable_llm_desc: bool):
+    """Exécute la recherche et génère les descriptions LLM individuelles si l'option est activée."""
     if not query or not query.strip():
         return "<p>Entrez une recherche.</p>"
 
@@ -120,21 +167,40 @@ async def rechercher(query: str, selected_modes: list[str] | None) -> str:
         if label in selected_labels
     ]
     if not modes:
-        return format_results_html([], {}, query)
+        return format_results_html([], {}, {}, query, enable_llm_desc)
 
+    # Exécution asynchrone des recherches mixtes
     mode_results = await asyncio.gather(
         *(search_mixed(query=query, mode=mode, k=TOP_K) for _, mode in modes)
     )
     results_by_label = dict(zip((label for label, _ in modes), mode_results))
 
-    return format_results_html(selected_labels, results_by_label, query)
+    # Génération asynchrone des descriptions LLM uniquement si demandé
+    descriptions_by_label = {}
+    desc_tasks = []
+    task_keys = []
+
+    for label, results in results_by_label.items():
+        descriptions_by_label[label] = {}
+        for idx, result in enumerate(results):
+            if enable_llm_desc:
+                desc_tasks.append(generate_chunk_description(query, result))
+                task_keys.append((label, idx))
+
+    if desc_tasks:
+        generated_descs = await asyncio.gather(*desc_tasks)
+        for (label, idx), desc in zip(task_keys, generated_descs):
+            descriptions_by_label[label][idx] = desc
+
+    html_results = format_results_html(selected_labels, results_by_label, descriptions_by_label, query, enable_llm_desc)
+    return html_results
 
 
 with gr.Blocks() as interface:
-    gr.Markdown("# 🔍 Recherche de fichiers")
+    gr.Markdown("# 🔍 Recherche de fichiers & Descriptions LLM")
     gr.Markdown(
-        "Choisissez les modes à comparer. Seuls les modes sélectionnés "
-        "seront affichés."
+        "Chaque résultat de fichier retourné peut disposer d'une description "
+        "générée par le LLM (avec prise en compte du formatage Markdown de base)."
     )
     with gr.Row():
         with gr.Column(scale=2):
@@ -150,18 +216,23 @@ with gr.Blocks() as interface:
                 label="Modes de recherche",
                 info="Vous pouvez en sélectionner plusieurs.",
             )
+            llm_desc_checkbox = gr.Checkbox(
+                label="Générer les descriptions LLM pour les fichiers",
+                value=True,
+            )
             search_button = gr.Button("Rechercher", variant="primary")
 
     results_output = gr.HTML()
+
     search_button.click(
         fn=rechercher,
-        inputs=[query_input, mode_input],
-        outputs=results_output,
+        inputs=[query_input, mode_input, llm_desc_checkbox],
+        outputs=[results_output],
     )
     query_input.submit(
         fn=rechercher,
-        inputs=[query_input, mode_input],
-        outputs=results_output,
+        inputs=[query_input, mode_input, llm_desc_checkbox],
+        outputs=[results_output],
     )
 
 

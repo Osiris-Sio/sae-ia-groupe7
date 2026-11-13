@@ -77,6 +77,8 @@ Téléchargez le modèle d'IA pour le texte :
 
 ```bash
 ollama pull embeddinggemma
+ollama pull gemma4:12b
+ollama pull gemma2:2b
 ```
 
 ### 2. Installer les dépendances

@@ -1,6 +1,6 @@
 """Module d'inférence LLM via Ollama pour le traitement en langage naturel.
 
-Utilise principalement le modèle `gemma4:12b` (ou équivalent configuré) pour :
+Utilise principalement le modèle `gemma2:2b` (ou équivalent configuré) pour :
 - La reformulation de requêtes de recherche utilisateur
 - Le regroupement thématique d'exercices ou de documents
 - La synthèse ou la génération de documents à partir de résultats trouvés
@@ -28,7 +28,7 @@ except (ImportError, AttributeError):
     LLM_MODEL = None
 
 # Modèle par défaut défini dans architecture.md et le cahier des charges
-DEFAULT_LLM_MODEL = LLM_MODEL or os.getenv("LLM_MODEL") or "gemma4:12b"
+DEFAULT_LLM_MODEL = LLM_MODEL or os.getenv("LLM_MODEL") or "gemma2:2b"
 
 
 # =====================================================================
@@ -60,7 +60,7 @@ class LLMClient(OllamaClient):
 
         Args:
             host: URL du serveur Ollama.
-            default_model: Nom du modèle LLM (défaut: 'gemma4:12b').
+            default_model: Nom du modèle LLM (défaut: 'gemma2:2b').
             timeout: Délai d'attente en secondes.
         """
         super().__init__(host=host, timeout=timeout)
@@ -273,3 +273,47 @@ class LLMClient(OllamaClient):
         )
         system = "Tu es un assistant d'analyse documentaire. Réponds de façon claire et structurée en français."
         return await self.generate(prompt=prompt, system=system, temperature=0.3)
+
+# =====================================================================
+# Fonctions Utilitaires
+# =====================================================================
+
+
+async def generate(
+    prompt: str,
+    host: str | None = None,
+    model: str = DEFAULT_LLM_MODEL,
+    system: str | None = None,
+    temperature: float = 0.7,
+    options: dict[str, Any] | None = None,
+) -> str:
+    """Génère une complétion textuelle de manière autonome.
+
+    Idéal pour des scripts, des tests ou une utilisation directe dans core.py.
+    """
+    client = LLMClient(host=host, default_model=model)
+    try:
+        return await client.generate(
+            prompt=prompt,
+            system=system,
+            model=model,
+            temperature=temperature,
+            stream=False,
+            options=options,
+        )
+    finally:
+        await client.close()
+
+
+async def summarize_documents(
+    contents: list[str],
+    query: str | None = None,
+    host: str | None = None,
+    model: str = DEFAULT_LLM_MODEL,
+) -> str:
+    """Génère une synthèse concise de manière autonome."""
+    client = LLMClient(host=host, default_model=model)
+    try:
+        return await client.summarize_documents(contents=contents, query=query)
+    finally:
+        await client.close()

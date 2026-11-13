@@ -36,7 +36,7 @@ OLLAMA_URL = (
 )
 
 # Timeout des requêtes HTTP vers Ollama (en secondes)
-OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "60.0"))
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300.0"))
 
 
 # =====================================================================
@@ -48,7 +48,7 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "embeddinggemma")
 EMBEDDING_DIM = 768  # Dimension native d'EmbeddingGemma
 
 # Modèle de langage (LLM)
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma4:12b")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma2:2b")
 
 # Modèle vision multimodal
 VLM_MODEL = os.getenv("VLM_MODEL", "qwen3-vl")

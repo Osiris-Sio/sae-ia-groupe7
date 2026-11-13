@@ -235,7 +235,7 @@ class OllamaClientTests(unittest.IsolatedAsyncioTestCase):
             return_value={
                 "models": [
                     {"name": "embeddinggemma:latest"},
-                    {"name": "gemma4:12b"},
+                    {"name": "gemma2:2b"},
                     {"digest": "sans-nom"},
                 ]
             },
@@ -243,7 +243,7 @@ class OllamaClientTests(unittest.IsolatedAsyncioTestCase):
             models = await self.client.list_models()
 
         # Vérifie que list_models() retourne les noms de modèles.
-        self.assertEqual(models, ["embeddinggemma:latest", "gemma4:12b"])
+        self.assertEqual(models, ["embeddinggemma:latest", "gemma2:2b"])
         get.assert_awaited_once_with("/api/tags")
 
     async def test_has_model_accepts_name_without_tag(self) -> None:
@@ -254,10 +254,10 @@ class OllamaClientTests(unittest.IsolatedAsyncioTestCase):
             self.client,
             "list_models",
             new_callable=AsyncMock,
-            return_value=["EmbeddingGemma:latest", "gemma4:12b"],
+            return_value=["EmbeddingGemma:latest", "gemma2:2b"],
         ):
             self.assertTrue(await self.client.has_model(" embeddinggemma "))
-            self.assertTrue(await self.client.has_model("GEMMA4:12b"))
+            self.assertTrue(await self.client.has_model("GEMMA2:2b"))
             self.assertFalse(await self.client.has_model("llama3"))
 
     async def test_async_context_manager_closes_http_client(self) -> None:

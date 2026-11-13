@@ -3,7 +3,7 @@
 Fournit :
 - `OllamaClient` : client générique HTTP asynchrone et vérification de santé (`is_server_running`).
 - `EmbeddingClient` : extraction de vecteurs sémantiques avec `embeddinggemma` (dimension 768).
-- `LLMClient` : inférence et raisonnement avec `gemma4:12b`.
+- `LLMClient` : inférence et raisonnement avec `gemma2:2b`.
 """
 
 from .base import (

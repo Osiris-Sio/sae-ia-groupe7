@@ -27,7 +27,7 @@ DEFAULT_OLLAMA_HOST = (
     or os.getenv("OLLAMA_URL")
     or "http://localhost:11434"
 )
-DEFAULT_TIMEOUT = 60.0
+DEFAULT_TIMEOUT = 300.0
 
 
 # =====================================================================
@@ -195,7 +195,7 @@ class OllamaClient:
         """Vérifie si un modèle particulier est présent sur le serveur.
 
         Args:
-            model_name: Nom du modèle (ex: 'embeddinggemma' ou 'gemma4:12b').
+            model_name: Nom du modèle (ex: 'embeddinggemma' ou 'gemma2:2b').
 
         Returns:
             bool: True si le modèle (ou un alias correspondant) est installé.
