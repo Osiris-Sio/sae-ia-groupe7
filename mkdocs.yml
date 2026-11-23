@@ -1,0 +1,70 @@
+site_name: Moteur Documentaire Hybride
+site_description: Moteur de recherche documentaire hybride et synthèse RAG locale - SAE S5 BUT Informatique (Groupe 7)
+site_author: Groupe 7 (Louis Amedro, Noé Colin, Valentin Minnebo)
+repo_name: Osiris-Sio/sae-ia-groupe7
+repo_url: https://github.com/Osiris-Sio/sae-ia-groupe7
+
+theme:
+  name: material
+  language: fr
+  palette:
+    # Mode sombre (par défaut)
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: deep orange
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Passer au mode clair
+    # Mode clair
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: deep orange
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Passer au mode sombre
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.select
+
+plugins:
+  - search
+  - include-markdown
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Présentation & Démarrage: index.md
+  - Architecture Technique: architecture.md
+  - Qualité Logicielle & Tests: development_quality.md
+  - Guide de Dépannage: troubleshooting.md
+  - Suivi des Sprints:
+      - Sprint 0 (Cadrage & Socle): monitoring/sprint-00.md
+      - Sprint 1 (Extraction & Lexical): monitoring/sprint-01.md
+      - Sprint 2 (Vectoriel & Hybride RRF): monitoring/sprint-02.md
+      - Sprint 3 (Synthèse & Citations): monitoring/sprint-03.md
+      - Sprint 4 (Robustesse & Résilience): monitoring/sprint-04.md
+      - Sprint 5 (Bilan & Clôture): monitoring/sprint-05.md
