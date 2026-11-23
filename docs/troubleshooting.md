@@ -71,7 +71,7 @@ Tous les tests doivent afficher `OK`.
   ```
   _(Optionnel, pour les fonctions avancées du LLM)_ :
   ```powershell
-  ollama pull gemma4:12b
+  ollama pull gemma2:2b
   ```
 
 ### Erreur : `TimeoutException` / Délai d'attente dépassé

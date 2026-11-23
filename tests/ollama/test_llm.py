@@ -290,6 +290,52 @@ class LLMClientTests(unittest.IsolatedAsyncioTestCase):
             query="recherche test"
         )
 
+    async def test_generate_computes_tokens_per_second(self) -> None:
+        """Vérifie le calcul des tokens/s et la mise à jour des statistiques."""
+        from recherche_fichiers.ollama_client.llm import (
+            get_last_stats,
+            get_session_tokens_per_second,
+            reset_session_stats,
+        )
+
+        reset_session_stats()
+        with patch.object(
+            self.client,
+            "post",
+            new_callable=AsyncMock,
+            return_value={
+                "response": "ok",
+                "eval_count": 120,
+                "eval_duration": 3_000_000_000,
+            },
+        ):
+            await self.client.generate("question")
+
+        self.assertEqual(self.client.last_stats["eval_count"], 120)
+        self.assertEqual(self.client.last_stats["eval_duration"], 3_000_000_000)
+        self.assertEqual(self.client.last_stats["tokens_per_second"], 40.0)
+        self.assertEqual(get_last_stats()["tokens_per_second"], 40.0)
+        self.assertEqual(get_session_tokens_per_second(), 40.0)
+
+    async def test_chat_computes_tokens_per_second(self) -> None:
+        """Vérifie le calcul des métriques de génération lors d'un appel chat()."""
+        messages = [{"role": "user", "content": "bonjour"}]
+        with patch.object(
+            self.client,
+            "post",
+            new_callable=AsyncMock,
+            return_value={
+                "message": {"content": "salut"},
+                "eval_count": 50,
+                "eval_duration": 1_000_000_000,
+            },
+        ):
+            await self.client.chat(messages)
+
+        self.assertEqual(self.client.last_stats["eval_count"], 50)
+        self.assertEqual(self.client.last_stats["tokens_per_second"], 50.0)
+
+
 # Lancement des tests
 if __name__ == "__main__":
     unittest.main()
