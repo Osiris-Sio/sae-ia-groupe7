@@ -23,8 +23,8 @@ jobs:
       - name: 🐍 Configuration de Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: "pip"
+          python-version: '3.11'
+          cache: 'pip'
 
       - name: 📦 Installation des dépendances
         run: |
@@ -45,6 +45,6 @@ jobs:
           }
           Write-Host "Dépôt propre : aucune base de données locale n'est commitée."
 
-      - name: 🧪 Exécution des 94 tests unitaires et d'intégration
+      - name: 🧪 Exécution des 109 tests unitaires et d'intégration
         run: |
           python -m unittest discover -s tests -v

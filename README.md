@@ -19,7 +19,7 @@
 
 ## 📌 Présentation & Objectifs
 
-Ce projet permet de retrouver des informations directement **au cœur des documents** (`.pdf`, `.docx`, `.md`, `.txt`, `.csv`).
+Ce projet permet de retrouver des informations directement **au cœur des documents** (`.pdf`, `.docx`, `.md`, `.txt`, `.csv`), puis d'en générer une synthèse structurée et sourcée via un modèle de langage (LLM).
 
 Chaque méthode de recherche a ses forces et ses limites :
 
@@ -56,10 +56,17 @@ Vous pouvez inspecter, visualiser et explorer l'intégralité de ce dépôt via 
   - Extraction multi-formats : **PDF** (`pdfplumber`), **Word** (`python-docx`), **CSV** (`pandas`), en plus de `.txt` et `.md` (`service/utils.py`).
   - Synchronisation stricte des `chunk_id` entre ChromaDB et SQLite (`service/core.py`).
   - Moteur de recherche unifié `search_mixed()` avec 3 modes (Vectoriel, Lexical, Hybride avec algorithme RRF).
-  - Sélecteur de mode via `gr.Radio` dans l'interface web Gradio (`ui_gradio.py`).
+  - Sélection multiple des modes de recherche dans l'interface Gradio (`ui_gradio.py`), avec affichage vertical des seuls modes sélectionnés.
   - Dataset de démonstration complet dans `data/demo/` couvrant les 5 formats.
-  - **94 tests automatiques** organisés en sous-dossiers (`tests/ollama/`, `tests/storage/`, `tests/service/`).
-- 🟡 **Sprint 3 (À venir) :** Re-ranking, filtres avancés et fonctionnalités documentaires augmentées.
+  - **94 tests automatiques** organisés en sous-dossiers.
+- 🟢 **Sprint 3 (Synthèse Gemma4, Citations & Interface Comparative) :**
+  - Synthèse de documents avec citations des sources (`synthesize()` dans `service/core.py`).
+  - Sélection multi-modes dans l'interface Gradio (`ui_gradio.py`), avec affichage comparatif des résultats.
+  - Surlignage dynamique des termes recherchés dans les extraits.
+  - Option de description/résumé par LLM pour chaque document retourné.
+  - Métriques d'inférence en direct (temps d'exécution, débit de génération en tokens/s, scores bruts).
+  - **109 tests automatiques** unitaires et d'intégration (avec `tests/test_ui_gradio.py`).
+- 🟡 **Sprint 4 (À venir) :** Robustesse, résilience face aux pannes Ollama et configuration externalisée.
 
 ---
 
@@ -73,10 +80,12 @@ Vous pouvez inspecter, visualiser et explorer l'intégralité de ce dépôt via 
 - Avoir **Python 3.11** installé.
 - Avoir **[Ollama](https://ollama.com/)** installé et lancé.
 
-Téléchargez le modèle d'IA pour le texte :
+Téléchargez les modèles d'IA nécessaires :
 
 ```bash
 ollama pull embeddinggemma
+
+ollama pull gemma2:2b
 ```
 
 ### 2. Installer les dépendances
@@ -95,7 +104,6 @@ Remove-Item -Recurse -Force data/chroma, data/lexical.db
 ```
 
 ```powershell
-
 # Étape A : Analyser les fichiers d'exemple (indexation simultanée ChromaDB & SQLite)
 py -3.11 src/recherche_fichiers/service/core.py data/demo
 
@@ -103,7 +111,7 @@ py -3.11 src/recherche_fichiers/service/core.py data/demo
 py -3.11 src/recherche_fichiers/ui_gradio.py
 ```
 
-L'application s'ouvre dans votre navigateur à l'adresse : **http://127.0.0.1:7860**. Vous pouvez y choisir votre mode de recherche (**Hybride**, **Vectoriel** ou **Lexical**) via les boutons radio.
+L'application s'ouvre dans votre navigateur à l'adresse : **http://127.0.0.1:7860**. Vous pouvez y sélectionner un ou plusieurs modes (**Hybride**, **Vectoriel** et/ou **Lexical**) pour comparer leurs résultats, avec surlignage des termes et descriptions LLM.
 
 ---
 
@@ -112,14 +120,17 @@ L'application s'ouvre dans votre navigateur à l'adresse : **http://127.0.0.1:78
 Les tests vérifient automatiquement le code en moins d'une seconde, sans avoir besoin d'allumer Ollama :
 
 ```powershell
-# Lancer tous les tests (94 tests unitaires et d'intégration)
+# Lancer tous les tests (109 tests unitaires et d'intégration)
 py -3.11 -m unittest discover tests
 ```
 
 Pour tester une partie précise :
 
 ```powershell
-# Module Ollama (connexion, embeddings, LLM)
+# Module Interface Gradio (surlignage, formatage, recherche)
+py -3.11 tests/test_ui_gradio.py
+
+# Module Ollama (connexion, embeddings, LLM, synthèse)
 py -3.11 tests/ollama/test_ollama.py
 py -3.11 tests/ollama/test_embedding.py
 py -3.11 tests/ollama/test_llm.py
@@ -128,7 +139,7 @@ py -3.11 tests/ollama/test_llm.py
 py -3.11 tests/storage/test_vector_store.py
 py -3.11 tests/storage/test_lexical_store.py
 
-# Module Service & Intégration (Core, parsing multi-formats, recherche hybride)
+# Module Service & Intégration (Core, parsing multi-formats, recherche hybride, synthèse)
 py -3.11 tests/service/test_core.py
 py -3.11 tests/service/test_utils.py
 py -3.11 tests/service/test_search.py
@@ -140,15 +151,15 @@ Le projet intègre un pipeline CI/CD complet (automatique et manuel) :
 
 - **Automatique sur GitHub Actions (`.github/workflows/ci.yml`) :**
   - Se déclenche automatiquement à chaque **Push** et **Pull Request** vers les branches `main` et `dev`.
-  - Exécute les 94 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sous environnement officiel Windows (`windows-latest` avec PowerShell).
-  - Déclenchable également manuellement depuis l'onglet **Actions** de GitHub (*Run workflow*).
+  - Exécute les 109 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sous environnement officiel Windows (`windows-latest` avec PowerShell).
+  - Déclenchable également manuellement depuis l'onglet **Actions** de GitHub (_Run workflow_).
 - **Manuelle en local avant commit (`scripts/verify.ps1`) :**
   - Exécutez simplement avant de commiter pour tout valider en 1 seconde :
     ```powershell
     .\scripts\verify.ps1
     # ou : py -3.11 scripts/verify.py
     ```
-  - *(Optionnel)* Pour bloquer automatiquement tout commit en cas d'erreur de test, installez le hook Git :
+  - _(Optionnel)_ Pour bloquer automatiquement tout commit en cas d'erreur de test, installez le hook Git :
     ```powershell
     .\scripts\install_hook.ps1
     ```
@@ -165,7 +176,7 @@ Le projet intègre un pipeline CI/CD complet (automatique et manuel) :
 sae-ia-groupe7/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml           # Pipeline CI/CD GitHub Actions (tests auto sur PR et push)
+│       └── ci.yml           # Pipeline CI/CD GitHub Actions (109 tests auto sur PR et push)
 ├── data/
 │   ├── demo/                # Fichiers d'exemples (.txt, .md, .csv, .docx, .pdf)
 │   ├── chroma/              # Base de données vectorielle ChromaDB
@@ -181,9 +192,9 @@ sae-ia-groupe7/
 ├── src/
 │   └── recherche_fichiers/
 │       ├── config.py        # Réglages généraux (adresses, modèles, options)
-│       ├── ui_gradio.py     # Interface web utilisateur (Gradio avec sélecteur de mode)
-│       ├── service/         # Découpage des textes, parsing et logique de recherche
-│       │   ├── core.py      # Programme principal (indexation multi-stores, search_mixed, RRF)
+│       ├── ui_gradio.py     # Interface web utilisateur (multi-modes, surlignage, LLM)
+│       ├── service/         # Découpage des textes, parsing, synthèse et recherche
+│       │   ├── core.py      # Programme principal (indexation, search_mixed, RRF, synthesize)
 │       │   └── utils.py     # Parsers (PDF, DOCX, CSV, TXT), découpage (chunking)
 │       ├── storage/         # Sauvegarde et indexation des données
 │       │   └── base.py      # VectorStore (ChromaDB) et LexicalStore (SQLite FTS5)
@@ -192,7 +203,8 @@ sae-ia-groupe7/
 │           ├── embedding.py # Création des vecteurs (EmbeddingGemma)
 │           ├── llm.py       # Fonctions LLM (reformulation, synthèse, thèmes)
 │           └── vlm.py       # Modèle vision (prévu pour plus tard)
-├── tests/                   # 94 tests automatiques organisés par domaine
+├── tests/                   # 109 tests automatiques organisés par domaine
+│   ├── test_ui_gradio.py    # Tests unitaires de l'interface Gradio et du surlignage
 │   ├── ollama/              # Tests unitaires du client Ollama (base, embedding, llm)
 │   ├── storage/             # Tests unitaires de VectorStore et LexicalStore
 │   └── service/             # Tests unitaires du core, utils et validation de recherche
@@ -212,7 +224,7 @@ Les réglages principaux sont dans `src/recherche_fichiers/config.py` :
 | `OLLAMA_URL`          | `http://localhost:11434` | Adresse du serveur Ollama                            |
 | `EMBEDDING_MODEL`     | `embeddinggemma`         | Modèle utilisé pour transformer le texte en vecteurs |
 | `EMBEDDING_DIM`       | `768`                    | Taille des vecteurs                                  |
-| `LLM_MODEL`           | `gemma4:12b`             | Modèle utilisé pour reformuler et résumer            |
+| `LLM_MODEL`           | `gemma2:2b`              | Modèle utilisé pour reformuler et résumer            |
 | `TOP_K`               | `5`                      | Nombre de résultats affichés par recherche           |
 | `CHROMA_PERSIST_PATH` | `data/chroma`            | Dossier où est enregistrée la base de données        |
 
@@ -222,44 +234,81 @@ Les réglages principaux sont dans `src/recherche_fichiers/config.py` :
 
 L'application utilise deux types d'intelligence artificielle :
 
-1. **L'IA de recherche (Embedding)** : lit vos textes et vos questions pour les comparer (par défaut : `embeddinggemma`).
-2. **L'IA de texte (LLM)** : reformule les questions et résume les documents (par défaut : `gemma4:12b`).
+3. **L'IA de recherche (Embedding)** : convertit le texte en vecteurs pour la recherche sémantique (par défaut : `embeddinggemma`).
+4. **L'IA de texte (LLM)** : génère les descriptions unitaires et la synthèse globale RAG (par défaut : `gemma2:2b` ou `llama3.2:3b`).
 
-Pour changer de modèle, suivez ces **2 étapes simples** :
+Le changement de modèle se fait en **3 étapes simples** :
 
-### 1. Télécharger le modèle sur votre ordinateur
+### 1. Télécharger le modèle dans Ollama
 
-Dans votre terminal PowerShell, tapez la commande de téléchargement avec le nom du modèle choisi :
+Dans votre terminal :
 
-```powershell
-# Exemple pour une autre IA de texte :
-ollama pull llama3.2
-
-# Exemple pour une autre IA de recherche :
+```bash
+ollama pull gemma4:12b
+# ou pour un autre modèle d'embedding :
 ollama pull nomic-embed-text
 ```
 
-### 2. Mettre à jour le fichier de configuration
+### 2. Indiquer le nouveau modèle (au choix)
 
-Ouvrez le fichier `src/recherche_fichiers/config.py` (avec un éditeur comme VS Code ou le Bloc-notes) et changez le nom entre guillemets :
+#### Option A (Recommandée : sans modifier le code)
+
+Définissez la variable dans votre terminal avant de lancer l'application :
+
+- **PowerShell (Windows) :**
+  ```powershell
+  $env:LLM_MODEL = "gemma4:12b"
+  ```
+- **Bash (Linux / macOS) :**
+  ```bash
+  export LLM_MODEL="gemma4:12b"
+  ```
+
+#### Option B (Permanente dans le code)
+
+Dans `src/recherche_fichiers/config.py` :
 
 ```python
-# Pour changer l'IA de recherche (ligne 47) :
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-
-# Pour changer l'IA de texte (ligne 51) :
-LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma4:12b")
 ```
 
-> ⚠️ **Remarque importante si vous changez l'IA de recherche (Embedding) :**  
-> Chaque modèle d'IA analyse les phrases d'une façon différente. Si vous changez de modèle d'embedding, il faut simplement vider la mémoire et réanalyser vos documents avec ces 2 commandes :
+### 3. Lancer l'application
+
+```powershell
+py -3.11 -m recherche_fichiers.ui_gradio
+```
+
+Au démarrage, l'interface affiche instantanément dans le terminal et sous le titre web les modèles actifs réels.
+
+---
+
+### 🌐 Utiliser un serveur Ollama distant (autre machine / GPU / VM)
+
+Pour déléguer l'inférence à un serveur Ollama distant, **ne mettez pas l'URL dans `LLM_MODEL`** (qui ne sert qu'au nom du modèle), mais utilisez **`OLLAMA_URL`** :
+
+- **En PowerShell :**
+  ```powershell
+  $env:OLLAMA_URL = "http://192.168.1.50:11434"
+  $env:LLM_MODEL = "llama3.2:3b"
+  ```
+- **Ou dans `src/recherche_fichiers/config.py` :**
+  ```python
+  OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.50:11434")
+  LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:3b")
+  ```
+
+> [!NOTE]
+> **Et pour les API externes (OpenAI ChatGPT, Google Gemini, Mistral API) ?**
+> Le projet utilise le protocole natif d'Ollama (`/api/generate` et `/api/embed`). Pour brancher directement une API tierce commerciale, il suffit d'utiliser une passerelle compatible Ollama (comme _LiteLLM_ ou _vLLM_) qui traduira les requêtes.
+
+> [!IMPORTANT]
+> **Cas particulier du modèle d'embedding (`EMBEDDING_MODEL`) :**
+> Si vous changez le modèle d'embedding (ex. `nomic-embed-text`), la dimension vectorielle et les représentations changent. Vous devez vider et ré-indexer les documents :
 >
 > ```powershell
 > Remove-Item -Recurse -Force data/chroma, data/lexical.db
 > py -3.11 src/recherche_fichiers/service/core.py data/demo
 > ```
-
-> **Note :** Le changement d'IA sera plus simple à l'avenir du projet, dans un fichier dédié (`.env`) et qui n'est pas encore implémenté.
 
 ---
 
@@ -274,9 +323,9 @@ Le moteur de recherche par mots-clés s'appuie sur le moteur **SQLite FTS5** int
 
 ---
 
-## 💡 Démonstration Comparative : Lexical vs Vectoriel vs Hybride (DoD Sprint 2)
+## 💡 Démonstration Comparative : Lexical vs Vectoriel vs Hybride
 
-Dans l'interface Gradio (`ui_gradio.py`), les 3 boutons radio permettent de comparer en temps réel le comportement des algorithmes sur des cas typiques :
+Dans l'interface Gradio (`ui_gradio.py`), vous pouvez cocher les modes à comparer en direct :
 
 ### Cas 1 : Requête en langage naturel conceptuel (`"modalités d'absence aux examens"`)
 
@@ -292,16 +341,16 @@ Dans l'interface Gradio (`ui_gradio.py`), les 3 boutons radio permettent de comp
 
 ---
 
-## 📋 Comprendre les Résultats Affichés (JSON)
+## 📋 Comprendre les Résultats Affichés
 
-Chaque résultat renvoyé dans l'interface contient **4 informations simples** :
+L'interface affiche les résultats sous forme de tableau clair :
 
-| Champ               | Ce que c'est (en clair)                                                                                                                                                                                                                                                                                   |
-| :------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`"content"`**     | **L'extrait de texte** trouvé dans le document qui répond à votre recherche.                                                                                                                                                                                                                              |
-| **`"source_path"`** | **Le fichier d'origine** (ex: `data\demo\bdd_sql.txt`).                                                                                                                                                                                                                                                   |
-| **`"chunk_index"`** | **Le numéro du paragraphe** dans le fichier (commence à `0`).                                                                                                                                                                                                                                             |
-| **`"score"`**       | **La note de pertinence** :<br>• En **Vectoriel** : la distance cosinus (plus c'est proche de `0`, plus le sens est proche).<br>• En **Lexical** : le score BM25 (plus c'est élevé, plus le mot est important).<br>• En **Hybride** : le score RRF combiné (plus c'est élevé, plus le résultat est fort). |
+| Information           | Description                                                                                                                                                                                                                                                                                  |
+| :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`Source`**          | Le fichier d'origine (`data/demo/...`).                                                                                                                                                                                                                                                      |
+| **`Score`**           | La note de pertinence :<br>• En **Vectoriel** : distance cosinus (plus c'est proche de `0`, plus le sens est proche).<br>• En **Lexical** : score BM25 (plus c'est élevé, plus le mot est important).<br>• En **Hybride** : score RRF combiné (plus c'est élevé, plus le résultat est fort). |
+| **`Contenu`**         | L'extrait de texte trouvé, avec surlignage des termes clés de la recherche.                                                                                                                                                                                                                  |
+| **`Description LLM`** | _(Optionnel)_ Synthèse unitaire générée par le modèle de langage pour résumer le passage.                                                                                                                                                                                                    |
 
 ---
 
@@ -311,7 +360,7 @@ Chaque résultat renvoyé dans l'interface contient **4 informations simples** :
 | :--------------------------------- | :----------------------------------------------- | :----------------------------------------------------------------- |
 | `OllamaConnectionError`            | Ollama n'est pas allumé                          | Lancer Ollama sur votre ordinateur ou taper `ollama serve`         |
 | `model 'embeddinggemma' not found` | Le modèle n'est pas téléchargé                   | Taper `ollama pull embeddinggemma` dans votre terminal             |
-| `ModuleNotFoundError`              | Python ne trouve pas le dossier `src`            | Lancer la commande avec `python -m recherche_fichiers...`          |
+| `ModuleNotFoundError`              | Python ne trouve pas le dossier `src`            | Lancer la commande avec `py -3.11 src/recherche_fichiers/...`      |
 | Aucun résultat trouvé              | Les fichiers n'ont pas encore été analysés       | Lancer `py -3.11 src/recherche_fichiers/service/core.py data/demo` |
 | Port `7860` déjà utilisé           | L'application tourne déjà dans un autre terminal | Fermer l'autre fenêtre ou changer le numéro de port                |
 

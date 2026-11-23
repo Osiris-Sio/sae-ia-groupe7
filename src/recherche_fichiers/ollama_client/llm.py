@@ -1,6 +1,6 @@
 """Module d'inférence LLM via Ollama pour le traitement en langage naturel.
 
-Utilise principalement le modèle `gemma4:12b` (ou équivalent configuré) pour :
+Utilise principalement le modèle `gemma2:2b` (ou équivalent configuré) pour :
 - La reformulation de requêtes de recherche utilisateur
 - Le regroupement thématique d'exercices ou de documents
 - La synthèse ou la génération de documents à partir de résultats trouvés
@@ -28,7 +28,38 @@ except (ImportError, AttributeError):
     LLM_MODEL = None
 
 # Modèle par défaut défini dans architecture.md et le cahier des charges
-DEFAULT_LLM_MODEL = LLM_MODEL or os.getenv("LLM_MODEL") or "gemma4:12b"
+DEFAULT_LLM_MODEL = LLM_MODEL or os.getenv("LLM_MODEL") or "gemma2:2b"
+
+# Statistiques de la dernière inférence et de la session courante
+_last_llm_stats: dict[str, Any] = {
+    "eval_count": 0,
+    "eval_duration": 0,
+    "tokens_per_second": None,
+}
+_session_stats: dict[str, Any] = {
+    "total_eval_count": 0,
+    "total_eval_duration": 0,
+}
+
+
+def get_last_stats() -> dict[str, Any]:
+    """Retourne les dernières métriques d'inférence (eval_count, eval_duration, tokens_per_second)."""
+    return _last_llm_stats.copy()
+
+
+def reset_session_stats() -> None:
+    """Réinitialise les compteurs de session pour une nouvelle requête."""
+    _session_stats["total_eval_count"] = 0
+    _session_stats["total_eval_duration"] = 0
+
+
+def get_session_tokens_per_second() -> float | None:
+    """Calcule le débit global (tokens/s) de la session ou dernière requête."""
+    count = _session_stats.get("total_eval_count", 0)
+    dur = _session_stats.get("total_eval_duration", 0)
+    if count and dur and dur > 0:
+        return round((count / dur) * 1e9, 2)
+    return _last_llm_stats.get("tokens_per_second")
 
 
 # =====================================================================
@@ -60,11 +91,37 @@ class LLMClient(OllamaClient):
 
         Args:
             host: URL du serveur Ollama.
-            default_model: Nom du modèle LLM (défaut: 'gemma4:12b').
+            default_model: Nom du modèle LLM (défaut: 'gemma2:2b').
             timeout: Délai d'attente en secondes.
         """
         super().__init__(host=host, timeout=timeout)
         self.default_model = default_model
+        self.last_stats: dict[str, Any] = {
+            "eval_count": None,
+            "eval_duration": None,
+            "tokens_per_second": None,
+        }
+
+    def _record_generation_stats(self, data: dict[str, Any]) -> None:
+        """Extrait et enregistre les métriques de génération à partir de la réponse Ollama."""
+        eval_count = data.get("eval_count")
+        eval_duration = data.get("eval_duration")
+        tokens_per_second = None
+        if eval_count and eval_duration and eval_duration > 0:
+            tokens_per_second = round((eval_count / eval_duration) * 1e9, 2)
+            _session_stats["total_eval_count"] = (
+                _session_stats.get("total_eval_count", 0) + eval_count
+            )
+            _session_stats["total_eval_duration"] = (
+                _session_stats.get("total_eval_duration", 0) + eval_duration
+            )
+
+        self.last_stats = {
+            "eval_count": eval_count,
+            "eval_duration": eval_duration,
+            "tokens_per_second": tokens_per_second,
+        }
+        _last_llm_stats.update(self.last_stats)
 
     async def generate(
         self,
@@ -106,6 +163,7 @@ class LLMClient(OllamaClient):
 
         try:
             data = await self.post("/api/generate", json_data=payload)
+            self._record_generation_stats(data)
             response_text = data.get("response", "")
             return response_text.strip()
         except Exception as err:
@@ -144,6 +202,7 @@ class LLMClient(OllamaClient):
 
         try:
             data = await self.post("/api/chat", json_data=payload)
+            self._record_generation_stats(data)
             message = data.get("message", {})
             return message.get("content", "").strip()
         except Exception as err:
@@ -267,9 +326,58 @@ class LLMClient(OllamaClient):
         query_context = f" en lien avec la recherche '{query}'" if query else ""
         prompt = (
             f"Synthétise les extraits de documents suivants{query_context}. "
-            "Sois concis, précis et pédagogique.\n\n"
+            "Sois concis, précis et cite explicitement les sources locales mentionnées.\n\n"
             f"Extraits :\n{joined_context}\n\n"
             "Synthèse :"
         )
-        system = "Tu es un assistant d'analyse documentaire. Réponds de façon claire et structurée en français."
+        system = (
+            "Tu es un assistant d'analyse documentaire. "
+            "Réponds de façon claire et structurée en français. "
+            "Cite uniquement les noms de fichiers locaux du corpus, n'invente aucun lien web externe ou Wikipédia."
+        )
         return await self.generate(prompt=prompt, system=system, temperature=0.3)
+
+
+# =====================================================================
+# Fonctions Utilitaires
+# =====================================================================
+
+
+async def generate(
+    prompt: str,
+    host: str | None = None,
+    model: str = DEFAULT_LLM_MODEL,
+    system: str | None = None,
+    temperature: float = 0.7,
+    options: dict[str, Any] | None = None,
+) -> str:
+    """Génère une complétion textuelle de manière autonome.
+
+    Idéal pour des scripts, des tests ou une utilisation directe dans core.py.
+    """
+    client = LLMClient(host=host, default_model=model)
+    try:
+        return await client.generate(
+            prompt=prompt,
+            system=system,
+            model=model,
+            temperature=temperature,
+            stream=False,
+            options=options,
+        )
+    finally:
+        await client.close()
+
+
+async def summarize_documents(
+    contents: list[str],
+    query: str | None = None,
+    host: str | None = None,
+    model: str = DEFAULT_LLM_MODEL,
+) -> str:
+    """Génère une synthèse concise de manière autonome."""
+    client = LLMClient(host=host, default_model=model)
+    try:
+        return await client.summarize_documents(contents=contents, query=query)
+    finally:
+        await client.close()

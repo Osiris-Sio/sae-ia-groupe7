@@ -7,6 +7,7 @@ Ce module orchestre :
     - la lecture et le découpage (chunking) des fichiers          -> service/utils.py
     - la génération des embeddings via Ollama / EmbeddingGemma    -> ollama_client/embedding.py
     - le stockage vectoriel (ChromaDB) et lexical (BM25)          -> storage/base.py
+    - la synthèse via le LLM (Gemma)                              -> ollama_client/llm.py
 """
 
 # --------------- #
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 from recherche_fichiers.service import utils
 from recherche_fichiers.storage.base import VectorStore, LexicalStore
 from recherche_fichiers.ollama_client import get_embedding
+from recherche_fichiers.ollama_client.llm import summarize_documents
 
 # -------------------------------------- #
 # --- Constantes/ Variables globales --- #
@@ -244,7 +246,38 @@ def _reciprocal_rank_fusion(
     return fused_results
 
 
-###############################################################################################
+async def synthesize(query: str, chunks: list[dict | Any]) -> str:
+    """
+    Construit la liste des contenus à partir des chunks récupérés et génère une synthèse textuelle 
+    en utilisant la fonction summarize_documents du module LLM.
+    """
+    if not query or not str(query).strip() or not chunks:
+        return "Aucun contenu pertinent n'a été trouvé pour générer une synthèse."
+
+    contents = []
+    for chunk in chunks:
+        if isinstance(chunk, dict):
+            source = chunk.get("source_path", "Inconnu")
+            chunk_idx = chunk.get("chunk_index", 0)
+            content = chunk.get("content", "")
+            if content.strip():
+                # On structure le contenu pour que le LLM conserve la traçabilité des sources et des chunks
+                contents.append(f"Fichier : {source} (Chunk {chunk_idx})\n{content}")
+        elif isinstance(chunk, str) and chunk.strip():
+            contents.append(chunk)
+
+    if not contents:
+        return "Aucun contenu valide n'a pu être extrait pour générer une synthèse."
+
+    try:
+        response = await summarize_documents(contents=contents, query=query)
+        return response
+    except Exception as e:
+        logger.error("Erreur lors de la génération de la synthèse : %s", e)
+        return f"Erreur lors de la génération de la synthèse : {e}"
+
+
+################################################################0###############################
 ### FONCTION OBSOLÈTE : A SUPPRIMER DÈS QUE TOUS LES APPELS ONT ÉTÉ NETTOYÉS DANS LE PROJET ###
 ###############################################################################################
 
@@ -296,5 +329,11 @@ if __name__ == "__main__":
                 )
                 print(f"     {result['content'][:100]}...")
             print()
+
+            # Test de la fonction synthesize
+            if results and mode == "hybrid":
+                print("Test de la synthèse sur les résultats hybrides...")
+                synth = await synthesize(query, results)
+                print(f"Synthèse :\n{synth}\n")
 
     asyncio.run(_demo())

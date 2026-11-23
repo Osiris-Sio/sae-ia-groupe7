@@ -2,7 +2,7 @@
 scripts/verify.py
 
 Script de verification manuelle pre-commit (CI locale).
-Verifie la syntaxe, l'integrite Git et les 94 tests unitaires.
+Verifie la syntaxe, l'integrite Git et l'ensemble des tests unitaires et d'integration.
 """
 
 import os
@@ -34,7 +34,9 @@ def main() -> int:
     root_dir = Path(__file__).resolve().parent.parent
     os.chdir(root_dir)
 
-    print(f"\n{CYAN}{BOLD}======================================================{RESET}")
+    print(
+        f"\n{CYAN}{BOLD}======================================================{RESET}"
+    )
     print(f"{CYAN}{BOLD} >>> VERIFICATION PRE-COMMIT DU PROJET (CI LOCALE) <<<{RESET}")
     print(f"{CYAN}{BOLD}======================================================{RESET}")
 
@@ -44,7 +46,9 @@ def main() -> int:
         [sys.executable, "-m", "compileall", "src", "tests", "-q"]
     )
     if compile_res.returncode != 0:
-        print(f"{RED}[FAIL] Erreur de syntaxe detectee dans les fichiers Python !{RESET}")
+        print(
+            f"{RED}[FAIL] Erreur de syntaxe detectee dans les fichiers Python !{RESET}"
+        )
         return 1
     print(f"{GREEN}   -> [OK] Syntaxe Python 100% valide.{RESET}")
 
@@ -57,10 +61,13 @@ def main() -> int:
     forbidden = [
         f
         for f in tracked_files
-        if "data/chroma" in f.replace("\\", "/") or "data/lexical.db" in f.replace("\\", "/")
+        if "data/chroma" in f.replace("\\", "/")
+        or "data/lexical.db" in f.replace("\\", "/")
     ]
     if forbidden:
-        print(f"{RED}[FAIL] Attention : Des bases locales sont suivies par Git :{RESET}")
+        print(
+            f"{RED}[FAIL] Attention : Des bases locales sont suivies par Git :{RESET}"
+        )
         for f in forbidden:
             print(f"{RED}   - {f}{RESET}")
         print(f"{RED}   Supprimez-les avec : git rm --cached [fichier]{RESET}")
@@ -68,17 +75,21 @@ def main() -> int:
     print(f"{GREEN}   -> [OK] Aucune base de donnees locale suivie dans Git.{RESET}")
 
     # 3. Execution des tests unitaires
-    print_step(3, "Execution de la suite de tests (94 tests)")
-    test_res = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "tests"]
-    )
+    print_step(3, "Execution de la suite complete de tests unitaires et d'integration")
+    test_res = subprocess.run([sys.executable, "-m", "unittest", "discover", "tests"])
     if test_res.returncode != 0:
         print(f"\n{RED}[FAIL] Des tests unitaires ont echoue !{RESET}")
         return 1
 
-    print(f"\n{GREEN}{BOLD}======================================================{RESET}")
-    print(f"{GREEN}{BOLD} [SUCCESS] TOUT EST AU VERT ! VOUS POUVEZ COMMIT EN TOUTE SECURITE.{RESET}")
-    print(f"{GREEN}{BOLD}======================================================{RESET}\n")
+    print(
+        f"\n{GREEN}{BOLD}======================================================{RESET}"
+    )
+    print(
+        f"{GREEN}{BOLD} [SUCCESS] TOUT EST AU VERT ! VOUS POUVEZ COMMIT EN TOUTE SECURITE.{RESET}"
+    )
+    print(
+        f"{GREEN}{BOLD}======================================================{RESET}\n"
+    )
     return 0
 
 
