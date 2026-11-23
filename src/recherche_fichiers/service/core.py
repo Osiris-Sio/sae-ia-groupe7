@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 from recherche_fichiers.service import utils
 from recherche_fichiers.storage.base import VectorStore, LexicalStore
-from recherche_fichiers.ollama_client import get_embedding
+from recherche_fichiers.ollama_client import OllamaError, get_embedding
 from recherche_fichiers.ollama_client.llm import summarize_documents
 
 # -------------------------------------- #
@@ -188,6 +188,8 @@ async def search_mixed(query: str, mode: str = "hybrid", k: int = 5) -> list[dic
     if mode == "vectorial":
         try:
             query_embedding = await get_embedding(query)
+        except OllamaError:
+            raise
         except Exception as e:
             logger.error("Échec de l'embedding : %s", e)
             return []
@@ -203,6 +205,8 @@ async def search_mixed(query: str, mode: str = "hybrid", k: int = 5) -> list[dic
     try:
         query_embedding = await get_embedding(query)
         vec_raw = _get_vector_store().search(embedding=query_embedding, k=k * 2)
+    except OllamaError:
+        raise
     except Exception as e:
         logger.error("Échec de la partie vectorielle en mode hybride : %s", e)
         vec_raw = {}

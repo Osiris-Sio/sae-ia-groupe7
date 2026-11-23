@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from recherche_fichiers import ui_gradio
+from recherche_fichiers.ollama_client import OllamaConnectionError
 
 
 class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
@@ -109,6 +110,72 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
 
         # Vérifie qu'aucune recherche n'a été lancée.
         search.assert_not_awaited()
+
+    async def test_rechercher_shows_warning_when_ollama_is_unavailable(self):
+        with patch.object(
+            ui_gradio,
+            "search_mixed",
+            new_callable=AsyncMock,
+            side_effect=OllamaConnectionError("connection refused"),
+        ):
+            with patch.object(ui_gradio.gr, "Warning") as warning:
+                result = await ui_gradio.rechercher(
+                    "ma recherche", ["Vectoriel (Sémantique)"], False
+                )
+
+        self.assertIn("Le serveur Ollama ne répond pas", result)
+        warning.assert_called_once()
+        self.assertIn("Le serveur Ollama ne répond pas", warning.call_args.args[0])
+
+    @patch("recherche_fichiers.ui_gradio.synthesize", new_callable=AsyncMock)
+    async def test_rechercher_warns_when_context_window_is_exceeded(
+        self, mock_synthesize
+    ):
+        mock_synthesize.return_value = (
+            "Erreur lors de la génération de la synthèse : context length exceeded"
+        )
+        results = [
+            {
+                "source_path": "a.txt",
+                "chunk_index": 0,
+                "score": 0.8,
+                "content": "Contenu",
+            }
+        ]
+        with patch.object(
+            ui_gradio, "search_mixed", new_callable=AsyncMock, return_value=results
+        ):
+            with patch.object(ui_gradio.gr, "Warning") as warning:
+                result = await ui_gradio.rechercher(
+                    "ma recherche", ["Lexical (Mots-clés)"], True
+                )
+
+        self.assertIn("dépasse la fenêtre de contexte", result)
+        warning.assert_called_once()
+        self.assertIn("dépasse la fenêtre de contexte", warning.call_args.args[0])
+
+    async def test_rechercher_ui_disables_and_reenables_search_button(self):
+        with patch.object(ui_gradio, "rechercher", new_callable=AsyncMock) as search:
+            search.return_value = "<p>Résultats</p>"
+            with patch.object(ui_gradio.gr, "update") as update:
+                updates = [
+                    item
+                    async for item in ui_gradio.rechercher_ui(
+                        "ma recherche", ["Lexical (Mots-clés)"], False
+                    )
+                ]
+
+        self.assertEqual(len(updates), 2)
+        self.assertEqual(updates[-1][0], "<p>Résultats</p>")
+        self.assertEqual(
+            update.call_args_list,
+            [
+                unittest.mock.call(),
+                unittest.mock.call(interactive=False),
+                unittest.mock.call(interactive=True),
+            ],
+        )
+        search.assert_awaited_once()
 
     def test_format_results_html_includes_only_selected_panel(self):
         """
