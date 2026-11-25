@@ -2,8 +2,8 @@
 
 Fournit :
 - `OllamaClient` : client générique HTTP asynchrone et vérification de santé (`is_server_running`).
-- `EmbeddingClient` : extraction de vecteurs sémantiques avec l'embedding  configurée.
-- `LLMClient` : inférence et raisonnement avec le LLM configurée.
+- `EmbeddingClient` : extraction de vecteurs sémantiques avec l'embedding configurée.
+- `LLMClient` : inférence et raisonnement avec le LLM configuré.
 """
 
 from .base import (

@@ -138,17 +138,21 @@ Chaque fragment documentaire extrait et indexé respecte la structure commune pa
 
 ## 6. Configuration (`config.py`)
 
-Les paramètres clés de l'application sont isolés dans `config.py` :
+Les paramètres de l'application sont centralisés et validés via `pydantic-settings` (`Settings` et l'instance `settings`) dans `config.py`, avec surcharge possible par variables d'environnement ou fichier `.env` :
 
 ```python
-OLLAMA_URL = "http://localhost:11434"
+from recherche_fichiers.config import settings
 
-EMBEDDING_MODEL = "embeddinggemma"
-EMBEDDING_DIM = 768
-LLM_MODEL = "gemma2:2b"
-
-TOP_K = 5  # Nombre de résultats retournés à l'utilisateur
-CHROMA_PERSIST_PATH = "data/chroma"
+# Exemples d'accès via `settings`
+settings.ollama_url
+settings.embedding_model
+settings.embedding_dim
+settings.llm_model
+settings.vlm_model
+settings.top_k
+settings.chunk_size
+settings.chunk_overlap
+settings.chroma_persist_path
 ```
 
 ---

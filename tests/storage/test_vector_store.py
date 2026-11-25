@@ -7,6 +7,11 @@ from unittest.mock import Mock, patch
 # lorsque les tests sont lancés depuis la racine du projet.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
+try:
+    from recherche_fichiers.config import settings
+except ImportError:
+    settings = None  # type: ignore[assignment]
+
 from recherche_fichiers.storage.base import VectorStore
 
 
@@ -52,13 +57,25 @@ class VectorStoreTests(unittest.TestCase):
         Vérifie que VectorStore initialise correctement
         le client ChromaDB et la collection par défaut.
         """
+        expected_path = (
+            settings.chroma_persist_path
+            if settings is not None and settings.chroma_persist_path
+            else "data/chroma"
+        )
+        expected_collection = (
+            settings.chroma_collection_name
+            if settings is not None and settings.chroma_collection_name
+            else "documents"
+        )
 
         # Vérifie que PersistentClient est appelé avec
-        # le chemin de stockage par défaut.
-        self.persistent_client.assert_called_once_with(path="data/chroma")
+        # le chemin de stockage configuré par défaut.
+        self.persistent_client.assert_called_once_with(path=expected_path)
 
-        # Vérifie que la collection "documents" est créée ou récupérée.
-        self.client.get_or_create_collection.assert_called_once_with(name="documents")
+        # Vérifie que la collection par défaut est créée ou récupérée.
+        self.client.get_or_create_collection.assert_called_once_with(
+            name=expected_collection
+        )
 
         # Vérifie que VectorStore utilise bien la collection créée.
         self.assertIs(self.store.collection, self.collection)
@@ -192,10 +209,11 @@ class VectorStoreTests(unittest.TestCase):
         self.store.search(embedding=[0.4, 0.5])
 
         # Vérifie que l'embedding est bien transmis à ChromaDB.
-        # k vaut 5 par défaut.
+        # k vaut settings.top_k par défaut.
+        expected_k = settings.top_k if settings is not None else 5
         self.collection.query.assert_called_once_with(
             query_embeddings=[[0.4, 0.5]],
-            n_results=5,
+            n_results=expected_k,
         )
 
     def test_search_prefers_query_embedding_when_both_are_provided(self) -> None:
@@ -208,9 +226,10 @@ class VectorStoreTests(unittest.TestCase):
 
         # L'embedding [0.1] doit être utilisé,
         # et non [0.9].
+        expected_k = settings.top_k if settings is not None else 5
         self.collection.query.assert_called_once_with(
             query_embeddings=[[0.1]],
-            n_results=5,
+            n_results=expected_k,
         )
 
     def test_search_requires_an_embedding(self) -> None:

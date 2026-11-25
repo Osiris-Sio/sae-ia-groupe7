@@ -1,6 +1,7 @@
 """Module d'inférence LLM via Ollama pour le traitement en langage naturel.
 
-Utilise principalement le modèle `gemma2:2b` (ou équivalent configuré) pour :
+Utilise principalement le modèle configuré dans `settings.llm_model`
+(par défaut `gemma2:2b`) pour :
 - La reformulation de requêtes de recherche utilisateur
 - Le regroupement thématique d'exercices ou de documents
 - La synthèse ou la génération de documents à partir de résultats trouvés
@@ -10,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import Any
 
 from .base import (
@@ -21,14 +21,16 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
-# Tentative de récupération des configurations globales
+# Récupération de la configuration centralisée si disponible
 try:
-    from recherche_fichiers.config import LLM_MODEL  # type: ignore
-except (ImportError, AttributeError):
-    LLM_MODEL = None
+    from recherche_fichiers.config import settings
+except ImportError:
+    settings = None  # type: ignore[assignment]
 
-# Modèle par défaut défini dans architecture.md et le cahier des charges
-DEFAULT_LLM_MODEL = LLM_MODEL or os.getenv("LLM_MODEL") or "gemma2:2b"
+# Modèle LLM par défaut issu de `settings`
+DEFAULT_LLM_MODEL: str = (
+    settings.llm_model if settings is not None else "gemma2:2b"
+)
 
 # Statistiques de la dernière inférence et de la session courante
 _last_llm_stats: dict[str, Any] = {
@@ -84,18 +86,18 @@ class LLMClient(OllamaClient):
     def __init__(
         self,
         host: str | None = None,
-        default_model: str = DEFAULT_LLM_MODEL,
-        timeout: float = DEFAULT_TIMEOUT,
+        default_model: str | None = None,
+        timeout: float | None = None,
     ) -> None:
         """Initialise le client LLM.
 
         Args:
             host: URL du serveur Ollama.
-            default_model: Nom du modèle LLM (défaut: 'gemma2:2b').
+            default_model: Nom du modèle LLM (utilise `settings.llm_model`).
             timeout: Délai d'attente en secondes.
         """
         super().__init__(host=host, timeout=timeout)
-        self.default_model = default_model
+        self.default_model = default_model or DEFAULT_LLM_MODEL
         self.last_stats: dict[str, Any] = {
             "eval_count": None,
             "eval_duration": None,
@@ -346,7 +348,7 @@ class LLMClient(OllamaClient):
 async def generate(
     prompt: str,
     host: str | None = None,
-    model: str = DEFAULT_LLM_MODEL,
+    model: str | None = None,
     system: str | None = None,
     temperature: float = 0.7,
     options: dict[str, Any] | None = None,
@@ -355,12 +357,13 @@ async def generate(
 
     Idéal pour des scripts, des tests ou une utilisation directe dans core.py.
     """
-    client = LLMClient(host=host, default_model=model)
+    resolved_model = model or DEFAULT_LLM_MODEL
+    client = LLMClient(host=host, default_model=resolved_model)
     try:
         return await client.generate(
             prompt=prompt,
             system=system,
-            model=model,
+            model=resolved_model,
             temperature=temperature,
             stream=False,
             options=options,
@@ -373,10 +376,11 @@ async def summarize_documents(
     contents: list[str],
     query: str | None = None,
     host: str | None = None,
-    model: str = DEFAULT_LLM_MODEL,
+    model: str | None = None,
 ) -> str:
     """Génère une synthèse concise de manière autonome."""
-    client = LLMClient(host=host, default_model=model)
+    resolved_model = model or DEFAULT_LLM_MODEL
+    client = LLMClient(host=host, default_model=resolved_model)
     try:
         return await client.summarize_documents(contents=contents, query=query)
     finally:

@@ -2,7 +2,7 @@
 Package service : Orchestration de la recherche et de l'indexation sémantique et lexicale.
 """
 
-from .core import index_directory, search_mixed, search
+from .core import index_directory, search, search_mixed
 from .utils import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,

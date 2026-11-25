@@ -1,4 +1,4 @@
-# Rend VectorStore directement accessible depuis le package storage.
-from .base import VectorStore
+# Rend LexicalStore et VectorStore directement accessibles depuis le package storage.
+from .base import LexicalStore, VectorStore
 
-__all__ = ["VectorStore"]
+__all__ = ["LexicalStore", "VectorStore"]

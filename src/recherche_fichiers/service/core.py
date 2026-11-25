@@ -20,6 +20,7 @@ import asyncio
 import logging
 from pathlib import Path
 import sys
+from typing import Any
 
 # Permet la résolution des modules que le script soit lancé directement ou via le package
 _src_dir = Path(__file__).resolve().parents[2]
@@ -28,16 +29,31 @@ if str(_src_dir) not in sys.path:
 
 logger = logging.getLogger(__name__)
 
-from recherche_fichiers.service import utils
-from recherche_fichiers.storage.base import VectorStore, LexicalStore
+try:
+    from recherche_fichiers.config import settings
+except ImportError:
+    settings = None  # type: ignore[assignment]
+
 from recherche_fichiers.ollama_client import OllamaError, get_embedding
 from recherche_fichiers.ollama_client.llm import summarize_documents
+from recherche_fichiers.service import utils
+from recherche_fichiers.storage.base import LexicalStore, VectorStore
 
 # -------------------------------------- #
 # --- Constantes/ Variables globales --- #
 # -------------------------------------- #
 
-SUPPORTED_FORMATS = {".txt", ".md", ".pdf", ".docx", ".csv"}
+SUPPORTED_FORMATS: set[str] = (
+    set(settings.supported_formats)
+    if settings is not None
+    else {".txt", ".md", ".pdf", ".docx", ".csv"}
+)
+DEFAULT_TOP_K: int = settings.top_k if settings is not None else 5
+DEFAULT_DEMO_DIR: Path = (
+    settings.demo_dir
+    if settings is not None and settings.demo_dir is not None
+    else Path("data/demo")
+)
 
 _vector_store: VectorStore | None = None
 _lexical_store: LexicalStore | None = None
@@ -63,7 +79,7 @@ def _get_lexical_store() -> LexicalStore:
     return _lexical_store
 
 
-async def index_directory(path: str) -> int:
+async def index_directory(path: str | Path) -> int:
     """
     Indexe, de bout en bout, tous les fichiers pris en charge d'un répertoire (recherche récursive)
     lecture -> chunking -> embedding -> stockage VectorStore & LexicalStore.
@@ -163,18 +179,22 @@ async def _index_file(file_path: Path) -> int:
     return len(ids)
 
 
-async def search_mixed(query: str, mode: str = "hybrid", k: int = 5) -> list[dict]:
+async def search_mixed(
+    query: str, mode: str = "hybrid", k: int | None = None
+) -> list[dict]:
     """
     Recherche multi-mode : oriente vers le store lexical, le store vectoriel, ou combine les deux en mode hybride.
 
     Args:
         query: texte de la requête utilisateur.
         mode : mode de recherche parmi "vectorial", "lexical", "hybrid".
-        k    : nombre de résultats à retourner (top-k).
+        k    : nombre de résultats à retourner (top-k, défaut: `settings.top_k`).
 
     Returns:
         Liste de résultats (dicts avec 'content', 'source_path', 'chunk_index', 'score'), triés par pertinence.
     """
+    resolved_k = DEFAULT_TOP_K if k is None else k
+
     if not query or not query.strip():
         return []
 
@@ -193,34 +213,41 @@ async def search_mixed(query: str, mode: str = "hybrid", k: int = 5) -> list[dic
         except Exception as e:
             logger.error("Échec de l'embedding : %s", e)
             return []
-        raw_results = _get_vector_store().search(embedding=query_embedding, k=k)
+        raw_results = _get_vector_store().search(
+            embedding=query_embedding, k=resolved_k
+        )
         return utils.format_search_results(raw_results)
 
     # Mode 2 : Recherche lexicale pure
     if mode == "lexical":
-        raw_results = _get_lexical_store().search(query=query, k=k)
+        raw_results = _get_lexical_store().search(query=query, k=resolved_k)
         return utils.format_search_results(raw_results)
 
     # Mode 3 : Recherche hybride (RRF - Reciprocal Rank Fusion)
     try:
         query_embedding = await get_embedding(query)
-        vec_raw = _get_vector_store().search(embedding=query_embedding, k=k * 2)
+        vec_raw = _get_vector_store().search(
+            embedding=query_embedding, k=resolved_k * 2
+        )
     except OllamaError:
         raise
     except Exception as e:
         logger.error("Échec de la partie vectorielle en mode hybride : %s", e)
         vec_raw = {}
 
-    lex_raw = _get_lexical_store().search(query=query, k=k * 2)
+    lex_raw = _get_lexical_store().search(query=query, k=resolved_k * 2)
 
     vec_results = utils.format_search_results(vec_raw)
     lex_results = utils.format_search_results(lex_raw)
 
-    return _reciprocal_rank_fusion(vec_results, lex_results, k=k)
+    return _reciprocal_rank_fusion(vec_results, lex_results, k=resolved_k)
 
 
 def _reciprocal_rank_fusion(
-    vector_results: list[dict], lexical_results: list[dict], k: int = 5, rrf_k: int = 60
+    vector_results: list[dict],
+    lexical_results: list[dict],
+    k: int = DEFAULT_TOP_K,
+    rrf_k: int = 60,
 ) -> list[dict]:
     """
     Combine et réordonne deux listes de résultats en utilisant l'algorithme Reciprocal Rank Fusion (RRF).
@@ -252,7 +279,7 @@ def _reciprocal_rank_fusion(
 
 async def synthesize(query: str, chunks: list[dict | Any]) -> str:
     """
-    Construit la liste des contenus à partir des chunks récupérés et génère une synthèse textuelle 
+    Construit la liste des contenus à partir des chunks récupérés et génère une synthèse textuelle
     en utilisant la fonction summarize_documents du module LLM.
     """
     if not query or not str(query).strip() or not chunks:
@@ -286,7 +313,7 @@ async def synthesize(query: str, chunks: list[dict | Any]) -> str:
 ###############################################################################################
 
 
-async def search(query: str, k: int = 5) -> list[dict]:
+async def search(query: str, k: int | None = None) -> list[dict]:
     """
     Recherche sémantique par défaut (conserve la rétrocompatibilité).
     """
@@ -315,7 +342,7 @@ if __name__ == "__main__":
     import sys
 
     logging.basicConfig(level=logging.INFO)
-    demo_path = sys.argv[1] if len(sys.argv) > 1 else "data/demo"
+    demo_path = sys.argv[1] if len(sys.argv) > 1 else str(DEFAULT_DEMO_DIR)
 
     async def _demo() -> None:
         print(f"Indexation de : {demo_path}")

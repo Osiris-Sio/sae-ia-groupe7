@@ -217,16 +217,26 @@ sae-ia-groupe7/
 
 ## ⚙️ Réglages (`config.py`)
 
-Les réglages principaux sont dans `src/recherche_fichiers/config.py` :
+La configuration centralisée repose sur `Settings` (`pydantic-settings`) dans `src/recherche_fichiers/config.py`. Les paramètres peuvent être surchargés via des **variables d'environnement** ou un **fichier `.env`** (les chaînes vides `""` sont ignorées pour conserver les valeurs par défaut).
 
-| Variable              | Valeur par défaut        | Description                                          |
-| :-------------------- | :----------------------- | :--------------------------------------------------- |
-| `OLLAMA_URL`          | `http://localhost:11434` | Adresse du serveur Ollama                            |
-| `EMBEDDING_MODEL`     | `embeddinggemma`         | Modèle utilisé pour transformer le texte en vecteurs |
-| `EMBEDDING_DIM`       | `768`                    | Taille des vecteurs                                  |
-| `LLM_MODEL`           | `gemma2:2b`              | Modèle utilisé pour reformuler et résumer            |
-| `TOP_K`               | `5`                      | Nombre de résultats affichés par recherche           |
-| `CHROMA_PERSIST_PATH` | `data/chroma`            | Dossier où est enregistrée la base de données        |
+| Paramètre (`Settings`) | Valeur par défaut | Description |
+| :--- | :--- | :--- |
+| `project_root` | 3 niveaux au-dessus de `config.py` | Racine du projet |
+| `data_dir` | `<project_root>/data` | Dossier de données |
+| `demo_dir` | `<data_dir>/demo` | Dossier des fichiers de démonstration |
+| `chroma_persist_path` | `<data_dir>/chroma` | Dossier de persistance ChromaDB |
+| `chroma_collection_name` | `"documents"` | Nom de la collection ChromaDB |
+| `ollama_url` | `"http://localhost:11434"` | URL du serveur Ollama (accepte `OLLAMA_URL` ou `OLLAMA_HOST`) |
+| `ollama_timeout` | `300.0` | Délai maximal d'attente HTTP Ollama (en secondes) |
+| `embedding_model` | `"embeddinggemma"` | Modèle d'embeddings vectoriels |
+| `embedding_dim` | `768` | Dimension attendue des vecteurs |
+| `llm_model` | `"gemma2:2b"` | Modèle LLM pour reformulation, résumés et synthèse |
+| `vlm_model` | `"qwen3-vl"` | Modèle vision configuré |
+| `top_k` | `5` | Nombre de résultats retournés par défaut |
+| `similarity_threshold` | `1.2` | Seuil de similarité configuré |
+| `chunk_size` | `500` | Taille maximale d'un chunk (en caractères) |
+| `chunk_overlap` | `50` | Chevauchement entre deux chunks consécutifs |
+| `supported_formats` | `{".txt"}` | Extensions de fichiers autorisées par défaut dans `Settings` |
 
 ---
 
@@ -234,8 +244,8 @@ Les réglages principaux sont dans `src/recherche_fichiers/config.py` :
 
 L'application utilise deux types d'intelligence artificielle :
 
-3. **L'IA de recherche (Embedding)** : convertit le texte en vecteurs pour la recherche sémantique (par défaut : `embeddinggemma`).
-4. **L'IA de texte (LLM)** : génère les descriptions unitaires et la synthèse globale RAG (par défaut : `gemma2:2b` ou `llama3.2:3b`).
+1. **L'IA de recherche (Embedding)** : convertit le texte en vecteurs pour la recherche sémantique (par défaut : `embeddinggemma`).
+2. **L'IA de texte (LLM)** : génère les descriptions unitaires et la synthèse globale RAG (par défaut : `gemma2:2b` ou `llama3.2:3b`).
 
 Le changement de modèle se fait en **3 étapes simples** :
 
@@ -253,7 +263,7 @@ ollama pull nomic-embed-text
 
 #### Option A (Recommandée : sans modifier le code)
 
-Définissez la variable dans votre terminal avant de lancer l'application :
+Définissez la variable d'environnement ou ajoutez-la dans un fichier `.env` avant de lancer l'application :
 
 - **PowerShell (Windows) :**
   ```powershell
@@ -263,13 +273,18 @@ Définissez la variable dans votre terminal avant de lancer l'application :
   ```bash
   export LLM_MODEL="gemma4:12b"
   ```
+- **Fichier `.env` :**
+  ```bash
+  LLM_MODEL=gemma4:12b
+  EMBEDDING_MODEL=nomic-embed-text
+  ```
 
 #### Option B (Permanente dans le code)
 
-Dans `src/recherche_fichiers/config.py` :
+Modifiez la valeur par défaut du champ correspondant dans la classe Settings de src/recherche_fichiers/config.py :
 
 ```python
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma4:12b")
+llm_model: str = Field(default="gemma4:12b")
 ```
 
 ### 3. Lancer l'application
@@ -291,10 +306,18 @@ Pour déléguer l'inférence à un serveur Ollama distant, **ne mettez pas l'URL
   $env:OLLAMA_URL = "http://192.168.1.50:11434"
   $env:LLM_MODEL = "llama3.2:3b"
   ```
-- **Ou dans `src/recherche_fichiers/config.py` :**
+- **Dans un fichier `.env`**
+  ```ini
+  OLLAMA_URL=http://192.168.1.50:11434
+  LLM_MODEL=llama3.2:3b
+  ```
+- **Ou dans `src/recherche_fichiers/config.py` (`settings`):**
   ```python
-  OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.50:11434")
-  LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:3b")
+  ollama_url: str = Field(
+    default="http://192.168.1.50:11434",
+    validation_alias=AliasChoices("OLLAMA_URL", "OLLAMA_HOST"),
+  )
+  llm_model: str = Field(default="llama3.2:3b")
   ```
 
 > [!NOTE]

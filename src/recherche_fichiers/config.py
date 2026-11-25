@@ -1,79 +1,130 @@
 """Configuration centralisée de l'application de recherche sémantique.
 
-Définit l'ensemble des constantes globales et paramètres par défaut
-(serveur Ollama, modèles IA, stockage ChromaDB, chunking et seuils).
-Ces paramètres peuvent être surchargés par des variables d'environnement.
+Définit l'ensemble des paramètres globaux et valeurs par défaut
+(serveur Ollama, modèles IA, stockage ChromaDB, chunking et seuils)
+via `pydantic-settings`. Ces paramètres peuvent être surchargés par des
+variables d'environnement ou un fichier `.env`.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
+from typing import Any
 
-# =====================================================================
-# Chemins du Projet
-# =====================================================================
+from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Racine du dépôt (trois niveaux au-dessus de ce fichier)
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-
-# Dossiers de données et de persistance
-DATA_DIR = PROJECT_ROOT / "data"
-DEMO_DIR = DATA_DIR / "demo"
-
-# Base vectorielle ChromaDB
-CHROMA_PERSIST_PATH = str(DATA_DIR / "chroma")
-CHROMA_COLLECTION_NAME = "documents"
+# Racine du dépôt (trois niveaux au-dessus de ce fichier : dossier_test/)
+_DEFAULT_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _DEFAULT_PROJECT_ROOT / ".env"
 
 
-# =====================================================================
-# Serveur Ollama
-# =====================================================================
+class Settings(BaseSettings):
+    """Paramètres de configuration chargés depuis l'environnement / `.env`."""
 
-# Adresse du serveur Ollama (localhost en développement, ou serveur distant)
-OLLAMA_URL = (
-    os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434"
-)
+    model_config = SettingsConfigDict(
+        env_file=_ENV_FILE if _ENV_FILE.exists() else ".env",
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
+    )
 
-# Timeout des requêtes HTTP vers Ollama (en secondes)
-OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300.0"))
+    # =====================================================================
+    # Chemins du Projet & Stockage
+    # =====================================================================
+    project_root: Path | None = Field(default=_DEFAULT_PROJECT_ROOT)
+    data_dir: Path | None = Field(default=None)
+    demo_dir: Path | None = Field(default=None)
+    chroma_persist_path: str | None = Field(default=None)
+    chroma_collection_name: str = Field(default="documents", min_length=1)
+
+    # =====================================================================
+    # Serveur Ollama
+    # =====================================================================
+    ollama_url: str = Field(
+        default="http://localhost:11434",
+        validation_alias=AliasChoices("OLLAMA_URL", "OLLAMA_HOST"),
+    )
+    ollama_timeout: float = Field(default=300.0, gt=0)
+
+    # =====================================================================
+    # Modèles d'Intelligence Artificielle
+    # =====================================================================
+    embedding_model: str = Field(default="embeddinggemma", min_length=1)
+    embedding_dim: int = Field(default=768, gt=0)
+    llm_model: str = Field(default="gemma2:2b", min_length=1)
+    vlm_model: str = Field(default="qwen3-vl", min_length=1)
+
+    # =====================================================================
+    # Paramètres de Recherche
+    # =====================================================================
+    top_k: int = Field(default=5, ge=1)
+    similarity_threshold: float = Field(default=1.2)
+
+    # =====================================================================
+    # Paramètres de Découpage (Chunking) & Formats
+    # =====================================================================
+    chunk_size: int = Field(default=500, gt=0)
+    chunk_overlap: int = Field(default=50, ge=0)
+    supported_formats: set[str] = Field(default_factory=lambda: {".txt"})
+
+    @field_validator("supported_formats", mode="before")
+    @classmethod
+    def _parse_supported_formats(cls, value: Any) -> Any:
+        """Permet de renseigner `SUPPORTED_FORMATS` en JSON ou en liste séparée par virgules."""
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            if not stripped.startswith("["):
+                items = [item.strip() for item in stripped.split(",") if item.strip()]
+                return {
+                    item if item.startswith(".") else f".{item}"
+                    for item in items
+                }
+        return value
+
+    @model_validator(mode="before")
+    @classmethod
+    def _empty_env_strings_to_none(cls, data: Any) -> Any:
+        """Évite qu'une variable d'environnement vide (`""`) écrase un défaut."""
+        if isinstance(data, dict):
+            return {
+                k: (None if isinstance(v, str) and v.strip() == "" else v)
+                for k, v in data.items()
+            }
+        return data
+
+    @model_validator(mode="after")
+    def _populate_derived_paths_and_validate(self) -> Settings:
+        """Calcule les chemins par défaut et vérifie la cohérence des paramètres."""
+        if self.project_root is None:
+            self.project_root = _DEFAULT_PROJECT_ROOT
+        else:
+            self.project_root = Path(self.project_root).expanduser().resolve()
+
+        resolved_data_dir = (
+            Path(self.data_dir).expanduser()
+            if self.data_dir is not None
+            else self.project_root / "data"
+        )
+        self.data_dir = resolved_data_dir
+
+        if self.demo_dir is None:
+            self.demo_dir = resolved_data_dir / "demo"
+        else:
+            self.demo_dir = Path(self.demo_dir).expanduser()
+
+        if self.chroma_persist_path is None:
+            self.chroma_persist_path = str(resolved_data_dir / "chroma")
+
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError(
+                f"chunk_overlap ({self.chunk_overlap}) doit être strictement inférieur "
+                f"à chunk_size ({self.chunk_size})."
+            )
+
+        return self
 
 
-# =====================================================================
-# Modèles d'Intelligence Artificielle
-# =====================================================================
-
-# Modèle d'embedding vectoriel (Rôle principal : recherche sémantique)
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "embeddinggemma")
-EMBEDDING_DIM = 768  # Dimension native d'EmbeddingGemma
-
-# Modèle de langage (LLM)
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma2:2b")
-
-# Modèle vision multimodal
-VLM_MODEL = os.getenv("VLM_MODEL", "qwen3-vl")
-
-
-# =====================================================================
-# Paramètres de Recherche
-# =====================================================================
-
-# Nombre maximal de résultats retournés à l'utilisateur
-TOP_K = int(os.getenv("TOP_K", "5"))
-
-# Seuil de distance vectorielle pour filtrer les résultats non pertinents
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "1.2"))
-
-
-# =====================================================================
-# Paramètres de Découpage (Chunking) & Formats
-# =====================================================================
-
-# Taille maximale d'un chunk (en caractères)
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
-
-# Chevauchement entre chunks consécutifs (en caractères)
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))
-
-# Formats documentaires supportés
-SUPPORTED_FORMATS = {".txt"}
+settings = Settings()

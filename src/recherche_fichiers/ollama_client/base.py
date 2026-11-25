@@ -7,27 +7,25 @@ ainsi que la vérification de disponibilité du serveur (`is_server_running`).
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
+
 import httpx
 
 # Configuration du logger
 logger = logging.getLogger(__name__)
 
-# Tentative de récupération des configurations globales si disponibles
+# Récupération de la configuration centralisée si disponible
 try:
-    from recherche_fichiers.config import OLLAMA_URL  # type: ignore
-except (ImportError, AttributeError):
-    OLLAMA_URL = None
+    from recherche_fichiers.config import settings
+except ImportError:
+    settings = None  # type: ignore[assignment]
 
-# Défaut si aucune configuration n'est trouvée
-DEFAULT_OLLAMA_HOST = (
-    OLLAMA_URL
-    or os.getenv("OLLAMA_HOST")
-    or os.getenv("OLLAMA_URL")
-    or "http://localhost:11434"
+DEFAULT_OLLAMA_HOST: str = (
+    settings.ollama_url if settings is not None else "http://localhost:11434"
 )
-DEFAULT_TIMEOUT = 300.0
+DEFAULT_TIMEOUT: float = (
+    settings.ollama_timeout if settings is not None else 300.0
+)
 
 
 # =====================================================================
@@ -73,19 +71,20 @@ class OllamaClient:
     def __init__(
         self,
         host: str | None = None,
-        timeout: float = DEFAULT_TIMEOUT,
+        timeout: float | None = None,
     ) -> None:
         """Initialise le client Ollama.
 
         Args:
             host: URL de base du serveur Ollama (ex: 'http://localhost:11434').
-                  Si non renseigné, utilise la valeur configurée dans `config.py`
-                  ou la variable d'environnement OLLAMA_HOST / OLLAMA_URL.
+                  Si non renseigné, utilise `settings.ollama_url`.
             timeout: Délai d'attente maximal en secondes pour les requêtes.
+                     Si non renseigné, utilise `settings.ollama_timeout`.
         """
         raw_host = host or DEFAULT_OLLAMA_HOST
+        resolved_timeout = DEFAULT_TIMEOUT if timeout is None else timeout
         self.host = raw_host.rstrip("/")
-        self.timeout = timeout
+        self.timeout = resolved_timeout
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:

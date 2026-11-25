@@ -19,23 +19,27 @@ from pathlib import Path
 import logging
 logger = logging.getLogger(__name__)
 
+# Récupération de la configuration centralisée si disponible
+try:
+    from recherche_fichiers.config import settings
+except ImportError:
+    settings = None  # type: ignore[assignment]
+
 # ------------------ #
 # --- Constantes --- #
 # ------------------ #
 
-CHUNK_SIZE    = 500
-CHUNK_OVERLAP = 50
+CHUNK_SIZE: int = settings.chunk_size if settings is not None else 500
+CHUNK_OVERLAP: int = settings.chunk_overlap if settings is not None else 50
 
 # ----------------- #
 # --- Fonctions --- #
 # ----------------- #
 
-def list_files_by_format(
-    directory: Path, 
-    formats  : set[str]
-) -> list[Path]:
+
+def list_files_by_format(directory: Path, formats: set[str]) -> list[Path]:
     """
-    Liste (de manière récursive) les fichiers d'un répertoire dont l'extension (ex: ".txt", ".md")  correspond à l'un des 
+    Liste (de manière récursive) les fichiers d'un répertoire dont l'extension (ex: ".txt", ".md") correspond à l'un des
     formats spécifiés.
 
     Args:
@@ -45,10 +49,11 @@ def list_files_by_format(
     Returns:
         Liste triée des chemins de fichiers correspondants.
     """
+    normalized_formats = {fmt.lower() for fmt in formats}
     return sorted(
-        p for p in directory.rglob("*")
-        if  p.is_file() 
-        and p.suffix.lower() in formats
+        p
+        for p in directory.rglob("*")
+        if p.is_file() and p.suffix.lower() in normalized_formats
     )
 
 
@@ -76,7 +81,12 @@ def read_pdf_file(file_path: Path) -> str:
                     if page_text:
                         text_content.append(page_text)
                 except Exception as err:
-                    logger.warning("Erreur lors de la lecture de la page %d de %s: %s", i, file_path, err)
+                    logger.warning(
+                        "Erreur lors de la lecture de la page %d de %s: %s",
+                        i,
+                        file_path,
+                        err,
+                    )
         return "\n".join(text_content)
     except Exception as e:
         logger.error("Erreur critique lors de la lecture du PDF %s: %s", file_path, e)
@@ -106,7 +116,9 @@ def read_docx_file(file_path: Path) -> str:
         # 2. Extraction du texte contenu dans les tableaux
         for table in doc.tables:
             for row in table.rows:
-                row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                row_text = " | ".join(
+                    cell.text.strip() for cell in row.cells if cell.text.strip()
+                )
                 if row_text:
                     text_lines.append(row_text)
 
@@ -142,7 +154,7 @@ def load_file_content(file_path: Path) -> str:
     Gère : .txt, .md, .pdf, .docx, .csv
     """
     suffix = file_path.suffix.lower()
-    
+
     if suffix in {".txt", ".md"}:
         return read_text_file(file_path)
     elif suffix == ".pdf":
@@ -157,46 +169,45 @@ def load_file_content(file_path: Path) -> str:
 
 def make_document_id(file_path: Path) -> str:
     """
-    Génère un `document_id` stable et sans caractères problématiques (utilisable comme préfixe d'identifiant ChromaDB) 
+    Génère un `document_id` stable et sans caractères problématiques (utilisable comme préfixe d'identifiant ChromaDB)
     à partir du chemin absolu du fichier.
     """
-    return re.sub(
-        r"[^a-zA-Z0-9_-]", 
-        "_", 
-        str(file_path.resolve())
-    )
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", str(file_path.resolve()))
 
 
 def chunk_text(
-    text      : str, 
-    chunk_size: int = CHUNK_SIZE, 
-    overlap   : int = CHUNK_OVERLAP
+    text: str,
+    chunk_size: int | None = None,
+    overlap: int | None = None,
 ) -> list[str]:
     """
-    Découpe un texte en chunks de `chunk_size` caractères maximum, avec un chevauchement `overlap` entre chunks successifs. 
-    Le point de coupe est recherché sur un saut de ligne ou une fin de phrase proche de la limite afin d'éviter de couper 
+    Découpe un texte en chunks de `chunk_size` caractères maximum, avec un chevauchement `overlap` entre chunks successifs.
+    Le point de coupe est recherché sur un saut de ligne ou une fin de phrase proche de la limite afin d'éviter de couper
     un mot en deux.
 
     Args:
         text      : texte source à découper.
-        chunk_size: taille maximale d'un chunk, en caractères.
-        overlap   : chevauchement entre deux chunks consécutifs, en caractères.
+        chunk_size: taille maximale d'un chunk, en caractères (défaut: `settings.chunk_size`).
+        overlap   : chevauchement entre deux chunks consécutifs, en caractères (défaut: `settings.chunk_overlap`).
 
     Returns:
         Liste ordonnée des chunks (chaînes non vides).
     """
+    resolved_chunk_size = CHUNK_SIZE if chunk_size is None else chunk_size
+    resolved_overlap = CHUNK_OVERLAP if overlap is None else overlap
+
     text = text.strip()
     if not text:
         return []
-    if len(text) <= chunk_size:
+    if len(text) <= resolved_chunk_size:
         return [text]
 
     chunks: list[str] = []
-    start             = 0
-    text_length       = len(text)
+    start = 0
+    text_length = len(text)
 
     while start < text_length:
-        end = min(start + chunk_size, text_length)
+        end = min(start + resolved_chunk_size, text_length)
 
         if end < text_length:
             boundary = text.rfind("\n", start, end)
@@ -209,28 +220,30 @@ def chunk_text(
         if chunk:
             chunks.append(chunk)
 
-        next_start = end - overlap
-        start      = next_start if next_start > start else end
+        next_start = end - resolved_overlap
+        start = next_start if next_start > start else end
 
     return chunks
 
 
 def format_search_results(raw_results: dict) -> list[dict]:
     """
-    Convertit le résultat brut retourné par `VectorStore.search()` ou `LexicalStore.search()` en une liste de dicts 
+    Convertit le résultat brut retourné par `VectorStore.search()` ou `LexicalStore.search()` en une liste de dicts
     directement exploitables par l'UI [{content, source_path, chunk_index, score}, ...].
     """
     documents = (raw_results.get("documents") or [[]])[0]
     metadatas = (raw_results.get("metadatas") or [[]])[0]
-    scores    = (raw_results.get("scores") or raw_results.get("distances") or [[]])[0]
-    results   = []
+    scores = (raw_results.get("scores") or raw_results.get("distances") or [[]])[0]
+    results = []
 
     for content, metadata, score in zip(documents, metadatas, scores):
         metadata = metadata or {}
-        results.append({
-            "content"    : content,
-            "source_path": metadata.get("source_path"),
-            "chunk_index": metadata.get("chunk_index"),
-            "score"      : score,
-        })
+        results.append(
+            {
+                "content": content,
+                "source_path": metadata.get("source_path"),
+                "chunk_index": metadata.get("chunk_index"),
+                "score": score,
+            }
+        )
     return results

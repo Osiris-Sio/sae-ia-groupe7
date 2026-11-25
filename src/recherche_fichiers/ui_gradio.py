@@ -68,14 +68,28 @@ except ImportError:
 
 
 try:
-    from recherche_fichiers.config import TOP_K, EMBEDDING_MODEL, LLM_MODEL
-except (ImportError, AttributeError):
+    from recherche_fichiers.config import settings
+except ImportError:
     try:
-        from config import TOP_K, EMBEDDING_MODEL, LLM_MODEL
-    except (ImportError, AttributeError):
-        TOP_K = 5
-        EMBEDDING_MODEL = "embeddinggemma"
-        LLM_MODEL = "gemma2:2b"
+        from config import settings
+    except ImportError:
+        settings = None  # type: ignore[assignment]
+
+
+def _default_top_k() -> int:
+    """Retourne `settings.top_k` si disponible, sinon 5."""
+    return settings.top_k if settings is not None else 5
+
+
+def _default_embedding_model() -> str:
+    """Retourne `settings.embedding_model` si disponible, sinon 'embeddinggemma'."""
+    return settings.embedding_model if settings is not None else "embeddinggemma"
+
+
+def _default_llm_model() -> str:
+    """Retourne `settings.llm_model` si disponible, sinon 'gemma2:2b'."""
+    return settings.llm_model if settings is not None else "gemma2:2b"
+
 
 MODE_MAPPING = {
     "Hybride (recommandé)": "hybrid",
@@ -321,13 +335,14 @@ async def rechercher(
     if not modes:
         return format_results_html([], {}, {}, query, enable_llm_desc)
 
+    top_k = _default_top_k()
     reset_session_stats()
     start_time = time.perf_counter()
 
     # Exécution asynchrone des recherches mixtes
     try:
         mode_results = await asyncio.gather(
-            *(search_mixed(query=query, mode=mode, k=TOP_K) for _, mode in modes)
+            *(search_mixed(query=query, mode=mode, k=top_k) for _, mode in modes)
         )
     except OllamaError as exc:
         message = _ollama_warning_message(exc)
@@ -364,7 +379,7 @@ async def rechercher(
         unique_chunks = list(unique_chunks_map.values())
         if unique_chunks:
             try:
-                global_synthesis = await synthesize(query, unique_chunks[:TOP_K])
+                global_synthesis = await synthesize(query, unique_chunks[:top_k])
             except Exception:
                 global_synthesis = (
                     "Erreur lors de la génération de la synthèse globale."
@@ -419,11 +434,14 @@ async def rechercher_ui(
 
 def create_interface() -> gr.Blocks:
     """Construit et configure l'interface Gradio."""
+    llm_model = _default_llm_model()
+    embedding_model = _default_embedding_model()
+
     print(
         f"\n======================================================\n"
         f" Modèles IA actifs :\n"
-        f" - LLM       : {LLM_MODEL}\n"
-        f" - Embedding : {EMBEDDING_MODEL}\n"
+        f" - LLM       : {llm_model}\n"
+        f" - Embedding : {embedding_model}\n"
         f"======================================================\n",
         flush=True,
     )
@@ -431,7 +449,7 @@ def create_interface() -> gr.Blocks:
         gr.Markdown("# 🔍 Recherche de fichiers & Descriptions LLM")
         gr.Markdown(
             f"Recherche hybride, vectorielle et lexicale dans le contenu des documents.<br>"
-            f"*(Modèles actifs : LLM <code>{LLM_MODEL}</code> | Embedding <code>{EMBEDDING_MODEL}</code>)*"
+            f"*(Modèles actifs : LLM <code>{llm_model}</code> | Embedding <code>{embedding_model}</code>)*"
         )
         with gr.Row():
             with gr.Column(scale=2):
