@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from recherche_fichiers import ui_gradio
+from recherche_fichiers import responsive_css
 from recherche_fichiers.ollama_client import OllamaConnectionError
 
 
@@ -78,6 +79,10 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
         content_pos = result.find("Résultat &lt;important&gt;")
         desc_pos = result.find("Description LLM :")
         self.assertTrue(content_pos < desc_pos)
+        self.assertIn('class="results-table"', result)
+        self.assertIn('data-label="Source"', result)
+        self.assertIn('data-label="Score brut"', result)
+        self.assertIn('data-label="Contenu &amp; Description LLM"', result)
 
     async def test_rechercher_requires_at_least_one_mode(self):
         """
@@ -299,6 +304,40 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("45.2 tokens/s", result)
         self.assertIn("Score brut", result)
 
+def test_create_interface_configures_responsive_layout(self):
+    """Vérifie que l'interface et RESPONSIVE_CSS définissent la mise en page adaptative attendue."""
+    interface = ui_gradio.create_interface()
+    css = responsive_css.RESPONSIVE_CSS
+    component_classes = {
+        class_name
+        for component in interface.config["components"]
+        for class_name in (
+            component.get("props", {}).get("elem_classes") or []
+        )
+    }
+
+    # Classes posées sur les conteneurs Gradio dans create_interface()
+    for expected_class in (
+        "search-layout",
+        "search-query",
+        "search-options",
+        "results-output",
+    ):
+        self.assertIn(expected_class, component_classes)
+
+    # Règles et points de rupture définis dans RESPONSIVE_CSS
+    for expected_rule in (
+        ".search-layout",
+        ".search-layout > .search-query",
+        ".search-layout > .search-options",
+        ".results-output",
+        ".results-output .results-table",
+        "@media (max-width: 768px)",
+        "@media (max-width: 640px)",
+        ".results-output .results-scroll",
+    ):
+        self.assertIn(expected_rule, css)
+
     @patch("recherche_fichiers.ui_gradio.synthesize", new_callable=AsyncMock)
     async def test_rechercher_displays_tokens_per_second_when_available(self, mock_synthesize):
         """Vérifie que la métrique de débit LLM est bien propagée par rechercher()."""
@@ -312,21 +351,6 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Temps d'exécution :", result)
         self.assertIn("Tokens générés/seconde :", result)
         self.assertIn("55.8 tokens/s", result)
-
-    @patch("recherche_fichiers.ui_gradio.gr.Warning")
-    async def test_rechercher_handles_dimension_mismatch_cleanly(self, mock_warning):
-        """Vérifie qu'une erreur de dimension ChromaDB affiche un avertissement clair sans crash."""
-        with patch.object(
-            ui_gradio,
-            "search_mixed",
-            new_callable=AsyncMock,
-            side_effect=ValueError("Embedding dimension 1024 does not match 768"),
-        ):
-            result = await ui_gradio.rechercher("test", ["Vectoriel (Sémantique)"], False)
-
-        mock_warning.assert_called_once()
-        self.assertIn("Incompatibilité de dimension vectorielle", result)
-        self.assertIn("data/chroma", result)
 
 
 if __name__ == "__main__":

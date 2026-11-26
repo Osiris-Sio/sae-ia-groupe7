@@ -378,7 +378,9 @@ Dans l'interface Gradio (`ui_gradio.py`), vous pouvez cocher les modes à compar
 
 ## 📋 Comprendre les Résultats Affichés
 
-L'interface affiche les résultats sous forme de tableau clair :
+L'interface affiche les résultats sous forme de tableau clair sur ordinateur et
+les transforme en cartes empilées lorsque la fenêtre devient étroite. Le champ
+de recherche et les options s'empilent également pour éviter les débordements.
 
 | Information           | Description                                                                                                                                                                                                                                                                                  |
 | :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

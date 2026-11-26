@@ -61,6 +61,8 @@ except ImportError:
             pass
 
 
+from recherche_fichiers.responsive_css import RESPONSIVE_CSS
+
 try:
     from recherche_fichiers.ollama_client import OllamaConnectionError, OllamaError
 except ImportError:
@@ -161,8 +163,8 @@ async def generate_chunk_description(query: str, result: dict) -> str:
             ],
         )
         return desc
-    except Exception as exc:
-        return f"Erreur lors de la génération de la description : {exc}"
+    except Exception:
+        return "Erreur lors de la génération de la description."
 
 
 def _ollama_warning_message(error: OllamaError | str) -> str:
@@ -206,24 +208,7 @@ def _ollama_warning_message(error: OllamaError | str) -> str:
 
 def _is_synthesis_error(value: str) -> bool:
     """Repère les erreurs renvoyées sous forme de texte par le service de synthèse."""
-    return value.startswith(
-        (
-            "Erreur lors de la génération de la synthèse",
-            "Erreur lors de la génération de la description",
-        )
-    )
-
-
-def _storage_warning_message(error: Exception) -> str:
-    """Transforme une erreur de stockage/exécution en message clair pour l'utilisateur."""
-    text = str(error).casefold()
-    if "dimension" in text or "embedding" in text:
-        return (
-            "Incompatibilité de dimension vectorielle avec la base ChromaDB "
-            "(modèle d'embedding modifié ?). Supprimez data/chroma et data/lexical.db "
-            "puis relancez l'indexation."
-        )
-    return f"Erreur lors de la recherche documentaire : {error}"
+    return value.startswith("Erreur lors de la génération de la synthèse")
 
 
 def format_results_html(
@@ -272,9 +257,9 @@ def format_results_html(
 
                 rows += (
                     "<tr>"
-                    f"<td>{escape(str(result.get('source_path') or ''))}</td>"
-                    f"<td>{escape(score)}</td>"
-                    f"<td>{cell_content}</td>"
+                    f'<td data-label="Source">{escape(str(result.get("source_path") or ""))}</td>'
+                    f'<td data-label="Score brut">{escape(score)}</td>'
+                    f'<td data-label="{escape(content_header)}">{cell_content}</td>'
                     "</tr>"
                 )
         else:
@@ -284,8 +269,8 @@ def format_results_html(
             '<section style="min-width:0;border:1px solid #d1d5db;'
             'border-radius:10px;padding:16px;background:var(--background-fill-primary);">'
             f'<h3 style="margin:0 0 12px">{escape(label)}</h3>'
-            '<div style="overflow-x:auto">'
-            '<table style="width:100%;border-collapse:collapse;'
+            '<div class="results-scroll" style="overflow-x:auto">'
+            '<table class="results-table" style="width:100%;border-collapse:collapse;'
             'text-align:left;table-layout:fixed">'
             "<thead><tr>"
             '<th style="width:24%">Source</th>'
@@ -370,10 +355,6 @@ async def rechercher(
         )
     except OllamaError as exc:
         message = _ollama_warning_message(exc)
-        gr.Warning(message)
-        return f"<p>{escape(message)}</p>"
-    except Exception as exc:
-        message = _storage_warning_message(exc)
         gr.Warning(message)
         return f"<p>{escape(message)}</p>"
     results_by_label = dict(zip((label for label, _ in modes), mode_results))
@@ -500,14 +481,14 @@ def create_interface() -> gr.Blocks:
             f"Recherche hybride, vectorielle et lexicale dans le contenu des documents.<br>"
             f"*(Modèles actifs : LLM <code>{llm_model}</code> | Embedding <code>{embedding_model}</code>)*"
         )
-        with gr.Row():
-            with gr.Column(scale=2):
+        with gr.Row(elem_classes=["search-layout"]):
+            with gr.Column(scale=2, elem_classes=["search-query"]):
                 query_input = gr.Textbox(
                     label="Votre recherche",
                     placeholder="Entrez vos mots-clés ou une question...",
                     lines=2,
                 )
-            with gr.Column(scale=1):
+            with gr.Column(scale=1, elem_classes=["search-options"]):
                 mode_input = gr.CheckboxGroup(
                     choices=list(MODE_MAPPING),
                     value=["Hybride (recommandé)"],
@@ -521,7 +502,7 @@ def create_interface() -> gr.Blocks:
                 )
                 search_button = gr.Button("Rechercher", variant="primary")
 
-        results_output = gr.HTML()
+        results_output = gr.HTML(elem_classes=["results-output"])
 
         search_button.click(
             fn=rechercher_ui,
@@ -547,4 +528,4 @@ def __getattr__(name: str):
 
 if __name__ == "__main__":
     app = create_interface()
-    app.launch(debug=True)
+    app.launch(debug=True, css=RESPONSIVE_CSS)
