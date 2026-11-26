@@ -166,16 +166,17 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
                 ]
 
         self.assertEqual(len(updates), 2)
+        self.assertEqual(updates[0][0], "<p>Recherche en cours : 0.0 s</p>")
         self.assertEqual(updates[-1][0], "<p>Résultats</p>")
         self.assertEqual(
             update.call_args_list,
             [
-                unittest.mock.call(),
                 unittest.mock.call(interactive=False),
                 unittest.mock.call(interactive=True),
             ],
         )
         search.assert_awaited_once()
+        self.assertIn("execution_start_time", search.await_args.kwargs)
 
     def test_format_results_html_includes_only_selected_panel(self):
         """
@@ -293,7 +294,7 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertIn("Temps d'exécution :", result)
-        self.assertIn("120.5 ms", result)
+        self.assertIn("0.12 s", result)
         self.assertIn("Tokens générés/seconde :", result)
         self.assertIn("45.2 tokens/s", result)
         self.assertIn("Score brut", result)

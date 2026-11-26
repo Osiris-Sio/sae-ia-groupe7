@@ -291,7 +291,7 @@ def format_results_html(
 
     if execution_time_ms is not None:
         metrics_html = (
-            f"<strong>Temps d'exécution :</strong> {execution_time_ms:.1f} ms"
+            f"<strong>Temps d'exécution :</strong> {execution_time_ms / 1000:.2f} s"
         )
         if tokens_per_second is not None:
             metrics_html += f" | <strong>Tokens générés/seconde :</strong> {tokens_per_second:.1f} tokens/s"
@@ -320,7 +320,10 @@ def format_results_html(
 
 
 async def rechercher(
-    query: str, selected_modes: list[str] | None, enable_llm_desc: bool
+    query: str,
+    selected_modes: list[str] | None,
+    enable_llm_desc: bool,
+    execution_start_time: float | None = None,
 ):
     """Exécute la recherche, mesure la latence et génère les descriptions / synthèse LLM."""
     if not query or not query.strip():
@@ -337,7 +340,11 @@ async def rechercher(
 
     top_k = _default_top_k()
     reset_session_stats()
-    start_time = time.perf_counter()
+    start_time = (
+        execution_start_time
+        if execution_start_time is not None
+        else time.perf_counter()
+    )
 
     # Exécution asynchrone des recherches mixtes
     try:
@@ -422,13 +429,34 @@ async def rechercher(
 async def rechercher_ui(
     query: str, selected_modes: list[str] | None, enable_llm_desc: bool
 ):
-    """Désactive le bouton durant la recherche et le réactive même en cas d'erreur."""
-    yield gr.update(), gr.update(interactive=False)
+    """Affiche le temps écoulé et désactive le bouton pendant la recherche."""
+    start_time = time.perf_counter()
+    search_task = asyncio.create_task(
+        rechercher(
+            query,
+            selected_modes,
+            enable_llm_desc,
+            execution_start_time=start_time,
+        )
+    )
     try:
-        result = await rechercher(query, selected_modes, enable_llm_desc)
+        yield "<p>Recherche en cours : 0.0 s</p>", gr.update(interactive=False)
+        while not search_task.done():
+            await asyncio.wait((search_task,), timeout=0.1)
+            if not search_task.done():
+                elapsed_seconds = time.perf_counter() - start_time
+                yield (
+                    f"<p>Recherche en cours : {elapsed_seconds:.1f} s</p>",
+                    gr.update(interactive=False),
+                )
+        result = await search_task
     except Exception:
         yield gr.update(), gr.update(interactive=True)
         raise
+    finally:
+        if not search_task.done():
+            search_task.cancel()
+            await asyncio.gather(search_task, return_exceptions=True)
     yield result, gr.update(interactive=True)
 
 
@@ -478,11 +506,13 @@ def create_interface() -> gr.Blocks:
             fn=rechercher_ui,
             inputs=[query_input, mode_input, llm_desc_checkbox],
             outputs=[results_output, search_button],
+            show_progress="hidden",
         )
         query_input.submit(
             fn=rechercher_ui,
             inputs=[query_input, mode_input, llm_desc_checkbox],
             outputs=[results_output, search_button],
+            show_progress="hidden",
         )
     return demo
 
