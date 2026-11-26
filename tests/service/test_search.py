@@ -153,6 +153,53 @@ class SearchIntegrationTests(unittest.IsolatedAsyncioTestCase):
             hybrid_res = await core.search_mixed("réseaux", mode="hybrid", k=2)
         self.assertGreaterEqual(len(hybrid_res), 1)
 
+    async def test_full_pipeline_ingestion_search_synthesize(self):
+        """
+        Test d'intégration de bout en bout :
+        ingestion d'un dossier -> recherche hybride -> synthèse avec citations locales.
+        """
+        from recherche_fichiers.config import Settings
+
+        sample_file = Path(self.temp_dir.name) / "cours_algo.txt"
+        sample_file.write_text(
+            "Le tri rapide (quicksort) a une complexité moyenne en O(n log n).",
+            encoding="utf-8",
+        )
+
+        # Vérifie aussi la résilience de Settings avec différents formats et la validation stricte d'URL
+        custom_settings = Settings(
+            ollama_url="http://127.0.0.1:11434/",
+            supported_formats=".txt, md",
+        )
+        self.assertEqual(custom_settings.ollama_url, "http://127.0.0.1:11434")
+        self.assertEqual(custom_settings.supported_formats, {".txt", ".md"})
+        with self.assertRaises(ValueError):
+            Settings(ollama_url="127.0.0.1:11434")
+
+        fake_vec = [0.25] * 768
+        with (
+            patch(
+                "recherche_fichiers.service.core.get_embedding",
+                new_callable=AsyncMock,
+                return_value=fake_vec,
+            ),
+            patch(
+                "recherche_fichiers.service.core.summarize_documents",
+                new_callable=AsyncMock,
+                return_value="Le tri rapide s'exécute en O(n log n) selon cours_algo.txt.",
+            ) as mock_summarize,
+        ):
+            indexed = await core.index_directory(self.temp_dir.name)
+            self.assertGreaterEqual(indexed, 1)
+
+            results = await core.search_mixed("tri rapide", mode="hybrid", k=3)
+            self.assertGreaterEqual(len(results), 1)
+
+            synthesis = await core.synthesize("tri rapide", results)
+
+        self.assertIn("cours_algo.txt", synthesis)
+        mock_summarize.assert_awaited_once()
+
 
 if __name__ == "__main__":
     unittest.main()

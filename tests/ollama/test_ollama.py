@@ -299,6 +299,31 @@ class OllamaClientTests(unittest.IsolatedAsyncioTestCase):
         )
         client.close.assert_awaited_once()
 
+    async def test_malformed_json_raises_response_error(self) -> None:
+        """Vérifie qu'une réponse JSON malformée ou non-objet lève OllamaResponseError."""
+        bad_json_response = Mock(status_code=200)
+        bad_json_response.json.side_effect = ValueError("Expecting value")
+        self.http_client.get.return_value = bad_json_response
+
+        with self.assertRaises(OllamaResponseError) as ctx:
+            await self.client.get("/api/tags")
+        self.assertIn("malformée", str(ctx.exception))
+
+        list_response = Mock(status_code=200)
+        list_response.json.return_value = ["unexpected"]
+        self.http_client.post.return_value = list_response
+
+        with self.assertRaises(OllamaResponseError) as ctx_list:
+            await self.client.post("/api/generate", json_data={})
+        self.assertIn("inattendu", str(ctx_list.exception))
+
+    async def test_timeout_raises_connection_error_with_clear_message(self) -> None:
+        """Vérifie qu'un timeout HTTP lève OllamaConnectionError avec message explicite."""
+        self.http_client.post.side_effect = httpx.ReadTimeout("read timed out")
+        with self.assertRaises(OllamaConnectionError) as ctx:
+            await self.client.post("/api/generate", json_data={})
+        self.assertIn("Délai d'attente dépassé", str(ctx.exception))
+
 
 # Lancement des tests
 if __name__ == "__main__":

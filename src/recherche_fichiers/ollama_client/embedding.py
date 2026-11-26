@@ -1,17 +1,12 @@
 """Module de génération d'embeddings vectoriels via Ollama.
 
-Utilise principalement le modèle `embeddinggemma` via l'endpoint `/api/embed`.
-
-Documentation de la dimension vectorielle :
--------------------------------------------
-- Modèle de référence : `embeddinggemma`
-- Dimension native des vecteurs : 768
+Utilise principalement le modèle configuré dans `settings.embedding_model`
+(par défaut `embeddinggemma`) via l'endpoint `/api/embed`.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 from typing import Sequence
 
 from .base import (
@@ -23,19 +18,17 @@ from .base import (
 
 logger = logging.getLogger(__name__)
 
-# Tentative de récupération des configurations globales
+# Récupération de la configuration centralisée si disponible
 try:
-    from recherche_fichiers.config import EMBEDDING_MODEL  # type: ignore
-except (ImportError, AttributeError):
-    EMBEDDING_MODEL = None
+    from recherche_fichiers.config import settings
+except ImportError:
+    settings = None  # type: ignore[assignment]
 
-# Constantes du modèle d'embedding
-DEFAULT_EMBEDDING_MODEL = (
-    EMBEDDING_MODEL or os.getenv("EMBEDDING_MODEL") or "embeddinggemma"
+# Constantes du modèle d'embedding issues de `settings`
+DEFAULT_EMBEDDING_MODEL: str = (
+    settings.embedding_model if settings is not None else "embeddinggemma"
 )
-
-# Dimension native documentée et attendue pour EmbeddingGemma
-DEFAULT_EMBEDDING_DIM = 768
+DEFAULT_EMBEDDING_DIM: int = settings.embedding_dim if settings is not None else 768
 
 
 # =====================================================================
@@ -60,21 +53,25 @@ class EmbeddingClient(OllamaClient):
     def __init__(
         self,
         host: str | None = None,
-        default_model: str = DEFAULT_EMBEDDING_MODEL,
-        expected_dim: int = DEFAULT_EMBEDDING_DIM,
-        timeout: float = DEFAULT_TIMEOUT,
+        default_model: str | None = None,
+        expected_dim: int | None = None,
+        timeout: float | None = None,
     ) -> None:
         """Initialise le client d'embedding.
 
         Args:
             host: URL du serveur Ollama (facultatif).
-            default_model: Modèle d'embedding par défaut ('embeddinggemma').
-            expected_dim: Dimension attendue des vecteurs (768 par défaut).
+            default_model: Modèle d'embedding par défaut (utilise `settings.embedding_model`).
+            expected_dim: Dimension attendue des vecteurs (utilise `settings.embedding_dim`).
             timeout: Délai d'expiration des requêtes HTTP en secondes.
         """
+        if host is None and settings is not None:
+            host = settings.ollama_embedding_url or settings.ollama_url
         super().__init__(host=host, timeout=timeout)
-        self.default_model = default_model
-        self.expected_dim = expected_dim
+        self.default_model = default_model or DEFAULT_EMBEDDING_MODEL
+        self.expected_dim = (
+            DEFAULT_EMBEDDING_DIM if expected_dim is None else expected_dim
+        )
 
     def validate_embedding(
         self,
@@ -209,11 +206,11 @@ class EmbeddingClient(OllamaClient):
 
         Args:
             text: Le texte à vectoriser.
-            model: Nom du modèle (défaut: 'embeddinggemma').
+            model: Nom du modèle (défaut: `self.default_model`).
             truncate_dim: Dimension de troncature optionnelle.
 
         Returns:
-            list[float]: Vecteur d'embedding (dimension 768 par défaut).
+            list[float]: Vecteur d'embedding.
         """
         embeddings = await self.get_embeddings(
             texts=[text],
@@ -242,16 +239,19 @@ class EmbeddingClient(OllamaClient):
 async def get_embedding(
     text: str,
     host: str | None = None,
-    model: str = DEFAULT_EMBEDDING_MODEL,
+    model: str | None = None,
     truncate_dim: int | None = None,
 ) -> list[float]:
     """Génère l'embedding d'un texte de manière autonome.
 
     Idéal pour des scripts ou des tests unitaires simples.
     """
-    client = EmbeddingClient(host=host, default_model=model)
+    resolved_model = model or DEFAULT_EMBEDDING_MODEL
+    client = EmbeddingClient(host=host, default_model=resolved_model)
     try:
-        return await client.get_embedding(text, model=model, truncate_dim=truncate_dim)
+        return await client.get_embedding(
+            text, model=resolved_model, truncate_dim=truncate_dim
+        )
     finally:
         await client.close()
 
@@ -259,14 +259,15 @@ async def get_embedding(
 async def get_embeddings(
     texts: list[str],
     host: str | None = None,
-    model: str = DEFAULT_EMBEDDING_MODEL,
+    model: str | None = None,
     truncate_dim: int | None = None,
 ) -> list[list[float]]:
     """Génère les embeddings d'une liste de textes de manière autonome."""
-    client = EmbeddingClient(host=host, default_model=model)
+    resolved_model = model or DEFAULT_EMBEDDING_MODEL
+    client = EmbeddingClient(host=host, default_model=resolved_model)
     try:
         return await client.get_embeddings(
-            texts, model=model, truncate_dim=truncate_dim
+            texts, model=resolved_model, truncate_dim=truncate_dim
         )
     finally:
         await client.close()

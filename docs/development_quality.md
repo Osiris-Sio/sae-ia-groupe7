@@ -11,7 +11,7 @@ Ce document formalise les normes de qualité logicielle, les conventions de code
 
 1. **La robustesse du code** : tolérance aux pannes, gestion rigoureuse des erreurs et cas limites.
 2. **La maintenabilité** : architecture modulaire claire, typage explicite et documentation intégrée.
-3. **La non-régression** : exécution rapide et systématique d'une suite de 109 tests unitaires et d'intégration.
+3. **La non-régression** : exécution rapide et systématique d'une suite de 117 tests unitaires et d'intégration.
 4. **L'intégrité du dépôt Git** : blocage des fichiers parasites (bases de données locales, caches temporaires).
 
 ---
@@ -38,7 +38,7 @@ Le code source est compartimenté en modules découplés selon le modèle archit
 
 ## 🧪 3. Stratégie de Tests Automatisés
 
-Le projet intègre **109 tests automatisés** exécutables en local en moins d'une seconde, sans nécessiter le lancement d'Ollama.
+Le projet intègre **117 tests automatisés** exécutables en local en moins d'une seconde, sans nécessiter le lancement d'Ollama.
 
 ### 3.1 Organisation modulaire de `tests/`
 
@@ -101,7 +101,7 @@ Avant de commiter, chaque développeur peut exécuter le script de validation :
 
 1. **Compilation syntaxique** : Vérifie qu'aucun fichier Python ne comporte d'erreur de syntaxe (`compileall src tests`).
 2. **Contrôle Git anti-fuite** : Vérifie qu'aucune base de données locale (`data/chroma`, `data/lexical.db`) n'est suivie par Git.
-3. **Exécution des 109 tests** : Lance la suite complète et affiche un bilan visuel clair.
+3. **Exécution des 117 tests** : Lance la suite complète et affiche un bilan visuel clair.
 
 > **Option Git Hook Automatique :**  
 > Pour bloquer automatiquement tout commit si un test échoue :
@@ -118,7 +118,7 @@ Avant de commiter, chaque développeur peut exécuter le script de validation :
 2. Installe Python 3.11 et les dépendances du projet (`requirements.txt`).
 3. Compile l'intégralité du code (`python -m compileall src tests`).
 4. Vérifie l'absence de fichiers interdits dans l'index Git (contrôle PowerShell anti-fuite).
-5. Exécute les 109 tests unitaires et d'intégration.
+5. Exécute les 117 tests unitaires et d'intégration.
 6. Valide ou bloque la Pull Request selon le résultat des tests.
 
 ---
@@ -137,6 +137,6 @@ Avant de commiter, chaque développeur peut exécuter le script de validation :
   - `refactor(...)` : Réorganisation du code sans changement de fonctionnalité.
 - **Définition de Terminé (DoD - Definition of Done)** :
   - Aucune erreur de syntaxe ou d'importation.
-  - 100% des tests passants (109 tests au vert).
+  - 100% des tests passants (117 tests au vert).
   - Documentation mise à jour (`README.md`, `architecture.md`, `troubleshooting.md`).
   - Validation du pipeline CI GitHub Actions.

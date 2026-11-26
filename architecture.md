@@ -66,7 +66,7 @@ src/
 └── shared/
     └── logging.py           # Configuration partagée des logs
 
-tests/                       # 109 tests automatiques
+tests/                       # 117 tests automatiques
 ├── test_ui_gradio.py        # Tests unitaires de l'interface Gradio et du surlignage
 ├── ollama/                  # Tests unitaires du client Ollama (base, embedding, llm, synthèse)
 ├── storage/                 # Tests unitaires de VectorStore et LexicalStore
@@ -138,17 +138,21 @@ Chaque fragment documentaire extrait et indexé respecte la structure commune pa
 
 ## 6. Configuration (`config.py`)
 
-Les paramètres clés de l'application sont isolés dans `config.py` :
+Les paramètres de l'application sont centralisés et validés via `pydantic-settings` (`Settings` et l'instance `settings`) dans `config.py`, avec surcharge possible par variables d'environnement ou fichier `.env` :
 
 ```python
-OLLAMA_URL = "http://localhost:11434"
+from recherche_fichiers.config import settings
 
-EMBEDDING_MODEL = "embeddinggemma"
-EMBEDDING_DIM = 768
-LLM_MODEL = "gemma2:2b"
-
-TOP_K = 5  # Nombre de résultats retournés à l'utilisateur
-CHROMA_PERSIST_PATH = "data/chroma"
+# Exemples d'accès via `settings`
+settings.ollama_url
+settings.embedding_model
+settings.embedding_dim
+settings.llm_model
+settings.vlm_model
+settings.top_k
+settings.chunk_size
+settings.chunk_overlap
+settings.chroma_persist_path
 ```
 
 ---
@@ -167,5 +171,6 @@ CHROMA_PERSIST_PATH = "data/chroma"
 ## 8. Évolutions Possibles (Roadmap)
 
 - 🟢 **Sprint 3 (Validé)** : Synthèse documentaire (`synthesize()`), interface comparative avec surlignage, descriptions LLM et 109 tests unitaires.
-- 🟡 **Sprint 4 (À venir)** : Robustesse face aux pannes Ollama, gestion des timeouts et externalisation de la configuration avec `pydantic-settings`.
+- 🟢 **Sprint 4 (Validé)** : Robustesse face aux pannes Ollama/JSON/timeouts, configuration externalisée (`pydantic-settings` + `.env`), URLs dédiées Embedding/LLM et **117 tests automatiques**.
+- 🟡 **Sprint 5 (À venir)** : Finitions du dataset `data/demo/`, filtrage par extension/dossier (bonus), préparation de la démonstration reproductible et revue de code croisée.
 - ⚪ **Évolutions futures** : Re-ranking par cross-encoder, filtres avancés par sous-dossier / extension, et multimodalité (Qwen3-VL).

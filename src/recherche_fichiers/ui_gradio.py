@@ -62,20 +62,52 @@ except ImportError:
 
 
 try:
-    from recherche_fichiers.config import TOP_K, EMBEDDING_MODEL, LLM_MODEL
-except (ImportError, AttributeError):
+    from recherche_fichiers.ollama_client import OllamaConnectionError, OllamaError
+except ImportError:
+    from ollama_client import OllamaConnectionError, OllamaError
+
+
+try:
+    from recherche_fichiers.config import settings
+except ImportError:
     try:
-        from config import TOP_K, EMBEDDING_MODEL, LLM_MODEL
-    except (ImportError, AttributeError):
-        TOP_K = 5
-        EMBEDDING_MODEL = "embeddinggemma"
-        LLM_MODEL = "gemma2:2b"
+        from config import settings
+    except ImportError:
+        settings = None  # type: ignore[assignment]
+
+
+def _default_top_k() -> int:
+    """Retourne `settings.top_k` si disponible, sinon 5."""
+    return settings.top_k if settings is not None else 5
+
+
+def _default_embedding_model() -> str:
+    """Retourne `settings.embedding_model` si disponible, sinon 'embeddinggemma'."""
+    return settings.embedding_model if settings is not None else "embeddinggemma"
+
+
+def _default_llm_model() -> str:
+    """Retourne `settings.llm_model` si disponible, sinon 'gemma2:2b'."""
+    return settings.llm_model if settings is not None else "gemma2:2b"
+
 
 MODE_MAPPING = {
     "Hybride (recommandé)": "hybrid",
     "Vectoriel (Sémantique)": "vectorial",
     "Lexical (Mots-clés)": "lexical",
 }
+
+_CONTEXT_WINDOW_MARKERS = (
+    "context length",
+    "context window",
+    "context size",
+    "maximum context",
+    "too many tokens",
+    "prompt is too long",
+    "input length exceeds",
+    "fenêtre de contexte",
+    "dépasse la fenêtre",
+)
 
 
 def highlight_passage(content: str, query: str) -> str:
@@ -129,8 +161,69 @@ async def generate_chunk_description(query: str, result: dict) -> str:
             ],
         )
         return desc
-    except Exception:
-        return "Erreur lors de la génération de la description."
+    except Exception as exc:
+        return f"Erreur lors de la génération de la description : {exc}"
+
+
+def _ollama_warning_message(error: OllamaError | str) -> str:
+    """Convertit une erreur Ollama en message compréhensible pour l'utilisateur."""
+    messages = [str(error)]
+    current_error = error if isinstance(error, BaseException) else None
+    while current_error is not None:
+        if isinstance(current_error, OllamaConnectionError):
+            return (
+                "Le serveur Ollama ne répond pas. Vérifiez qu'il est démarré, "
+                "puis réessayez."
+            )
+        current_error = current_error.__cause__
+        if current_error is not None:
+            messages.append(str(current_error))
+
+    error_text = " ".join(messages).casefold()
+    if any(marker in error_text for marker in _CONTEXT_WINDOW_MARKERS):
+        return (
+            "Votre requête dépasse la fenêtre de contexte du modèle. "
+            "Réduisez la requête ou désactivez les descriptions et la synthèse IA, "
+            "puis réessayez."
+        )
+    if any(
+        marker in error_text
+        for marker in (
+            "impossible de se connecter",
+            "connection refused",
+            "failed to connect",
+            "could not connect",
+            "timed out",
+            "timeout",
+        )
+    ):
+        return (
+            "Le serveur Ollama ne répond pas. Vérifiez qu'il est démarré, "
+            "puis réessayez."
+        )
+    return f"Ollama n'a pas pu traiter la requête : {error}"
+
+
+def _is_synthesis_error(value: str) -> bool:
+    """Repère les erreurs renvoyées sous forme de texte par le service de synthèse."""
+    return value.startswith(
+        (
+            "Erreur lors de la génération de la synthèse",
+            "Erreur lors de la génération de la description",
+        )
+    )
+
+
+def _storage_warning_message(error: Exception) -> str:
+    """Transforme une erreur de stockage/exécution en message clair pour l'utilisateur."""
+    text = str(error).casefold()
+    if "dimension" in text or "embedding" in text:
+        return (
+            "Incompatibilité de dimension vectorielle avec la base ChromaDB "
+            "(modèle d'embedding modifié ?). Supprimez data/chroma et data/lexical.db "
+            "puis relancez l'indexation."
+        )
+    return f"Erreur lors de la recherche documentaire : {error}"
 
 
 def format_results_html(
@@ -215,7 +308,7 @@ def format_results_html(
 
     if execution_time_ms is not None:
         metrics_html = (
-            f"<strong>Temps d'exécution :</strong> {execution_time_ms:.1f} ms"
+            f"<strong>Temps d'exécution :</strong> {execution_time_ms / 1000:.2f} s"
         )
         if tokens_per_second is not None:
             metrics_html += f" | <strong>Tokens générés/seconde :</strong> {tokens_per_second:.1f} tokens/s"
@@ -244,7 +337,10 @@ def format_results_html(
 
 
 async def rechercher(
-    query: str, selected_modes: list[str] | None, enable_llm_desc: bool
+    query: str,
+    selected_modes: list[str] | None,
+    enable_llm_desc: bool,
+    execution_start_time: float | None = None,
 ):
     """Exécute la recherche, mesure la latence et génère les descriptions / synthèse LLM."""
     if not query or not query.strip():
@@ -259,13 +355,27 @@ async def rechercher(
     if not modes:
         return format_results_html([], {}, {}, query, enable_llm_desc)
 
+    top_k = _default_top_k()
     reset_session_stats()
-    start_time = time.perf_counter()
+    start_time = (
+        execution_start_time
+        if execution_start_time is not None
+        else time.perf_counter()
+    )
 
     # Exécution asynchrone des recherches mixtes
-    mode_results = await asyncio.gather(
-        *(search_mixed(query=query, mode=mode, k=TOP_K) for _, mode in modes)
-    )
+    try:
+        mode_results = await asyncio.gather(
+            *(search_mixed(query=query, mode=mode, k=top_k) for _, mode in modes)
+        )
+    except OllamaError as exc:
+        message = _ollama_warning_message(exc)
+        gr.Warning(message)
+        return f"<p>{escape(message)}</p>"
+    except Exception as exc:
+        message = _storage_warning_message(exc)
+        gr.Warning(message)
+        return f"<p>{escape(message)}</p>"
     results_by_label = dict(zip((label for label, _ in modes), mode_results))
 
     descriptions_by_label = {label: {} for label in results_by_label}
@@ -297,11 +407,29 @@ async def rechercher(
         unique_chunks = list(unique_chunks_map.values())
         if unique_chunks:
             try:
-                global_synthesis = await synthesize(query, unique_chunks[:TOP_K])
+                global_synthesis = await synthesize(query, unique_chunks[:top_k])
             except Exception:
                 global_synthesis = (
                     "Erreur lors de la génération de la synthèse globale."
                 )
+
+    synthesis_errors = [
+        value
+        for descriptions in descriptions_by_label.values()
+        for value in descriptions.values()
+        if _is_synthesis_error(value)
+    ]
+    if _is_synthesis_error(global_synthesis):
+        synthesis_errors.append(global_synthesis)
+    if synthesis_errors:
+        message = _ollama_warning_message(synthesis_errors[0])
+        gr.Warning(message)
+        for descriptions in descriptions_by_label.values():
+            for idx, value in descriptions.items():
+                if _is_synthesis_error(value):
+                    descriptions[idx] = message
+        if _is_synthesis_error(global_synthesis):
+            global_synthesis = message
 
     execution_time_ms = (time.perf_counter() - start_time) * 1000
     tokens_per_second = get_session_tokens_per_second() if enable_llm_desc else None
@@ -319,13 +447,50 @@ async def rechercher(
     return html_results
 
 
+async def rechercher_ui(
+    query: str, selected_modes: list[str] | None, enable_llm_desc: bool
+):
+    """Affiche le temps écoulé et désactive le bouton pendant la recherche."""
+    start_time = time.perf_counter()
+    search_task = asyncio.create_task(
+        rechercher(
+            query,
+            selected_modes,
+            enable_llm_desc,
+            execution_start_time=start_time,
+        )
+    )
+    try:
+        yield "<p>Recherche en cours : 0.0 s</p>", gr.update(interactive=False)
+        while not search_task.done():
+            await asyncio.wait((search_task,), timeout=0.1)
+            if not search_task.done():
+                elapsed_seconds = time.perf_counter() - start_time
+                yield (
+                    f"<p>Recherche en cours : {elapsed_seconds:.1f} s</p>",
+                    gr.update(interactive=False),
+                )
+        result = await search_task
+    except Exception:
+        yield gr.update(), gr.update(interactive=True)
+        raise
+    finally:
+        if not search_task.done():
+            search_task.cancel()
+            await asyncio.gather(search_task, return_exceptions=True)
+    yield result, gr.update(interactive=True)
+
+
 def create_interface() -> gr.Blocks:
     """Construit et configure l'interface Gradio."""
+    llm_model = _default_llm_model()
+    embedding_model = _default_embedding_model()
+
     print(
         f"\n======================================================\n"
         f" Modèles IA actifs :\n"
-        f" - LLM       : {LLM_MODEL}\n"
-        f" - Embedding : {EMBEDDING_MODEL}\n"
+        f" - LLM       : {llm_model}\n"
+        f" - Embedding : {embedding_model}\n"
         f"======================================================\n",
         flush=True,
     )
@@ -333,7 +498,7 @@ def create_interface() -> gr.Blocks:
         gr.Markdown("# 🔍 Recherche de fichiers & Descriptions LLM")
         gr.Markdown(
             f"Recherche hybride, vectorielle et lexicale dans le contenu des documents.<br>"
-            f"*(Modèles actifs : LLM <code>{LLM_MODEL}</code> | Embedding <code>{EMBEDDING_MODEL}</code>)*"
+            f"*(Modèles actifs : LLM <code>{llm_model}</code> | Embedding <code>{embedding_model}</code>)*"
         )
         with gr.Row():
             with gr.Column(scale=2):
@@ -359,14 +524,16 @@ def create_interface() -> gr.Blocks:
         results_output = gr.HTML()
 
         search_button.click(
-            fn=rechercher,
+            fn=rechercher_ui,
             inputs=[query_input, mode_input, llm_desc_checkbox],
-            outputs=[results_output],
+            outputs=[results_output, search_button],
+            show_progress="hidden",
         )
         query_input.submit(
-            fn=rechercher,
+            fn=rechercher_ui,
             inputs=[query_input, mode_input, llm_desc_checkbox],
-            outputs=[results_output],
+            outputs=[results_output, search_button],
+            show_progress="hidden",
         )
     return demo
 

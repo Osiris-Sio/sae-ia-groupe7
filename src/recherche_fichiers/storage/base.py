@@ -1,9 +1,46 @@
+from __future__ import annotations
+
 import json
+from pathlib import Path
 import re
 import sqlite3
-from pathlib import Path
 
 import chromadb
+
+try:
+    from recherche_fichiers.config import settings
+except ImportError:
+    settings = None  # type: ignore[assignment]
+
+
+def _default_lexical_persist_path() -> str:
+    """Calcule le chemin par défaut de la base SQLite FTS5 à partir de `settings`."""
+    if settings is not None and settings.data_dir is not None:
+        return str(Path(settings.data_dir) / "lexical.db")
+    return "data/lexical.db"
+
+
+def _default_chroma_persist_path() -> str:
+    """Calcule le chemin par défaut de ChromaDB à partir de `settings`."""
+    if settings is not None and settings.chroma_persist_path:
+        return settings.chroma_persist_path
+    if settings is not None and settings.data_dir is not None:
+        return str(Path(settings.data_dir) / "chroma")
+    return "data/chroma"
+
+
+def _default_chroma_collection_name() -> str:
+    """Retourne le nom de collection ChromaDB par défaut depuis `settings`."""
+    if settings is not None and settings.chroma_collection_name:
+        return settings.chroma_collection_name
+    return "documents"
+
+
+def _default_top_k() -> int:
+    """Retourne le `top_k` par défaut depuis `settings`."""
+    if settings is not None and settings.top_k:
+        return settings.top_k
+    return 5
 
 
 class LexicalStore:
@@ -11,13 +48,19 @@ class LexicalStore:
     Gère le stockage et la recherche lexicale des chunks avec SQLite FTS5.
     """
 
-    def __init__(self, persist_path: str = "data/lexical.db"):
+    def __init__(self, persist_path: str | Path | None = None):
+        resolved_path = (
+            _default_lexical_persist_path()
+            if persist_path is None
+            else str(persist_path)
+        )
+
         # Crée le dossier de la base si nécessaire.
-        if persist_path != ":memory:":
-            Path(persist_path).parent.mkdir(parents=True, exist_ok=True)
+        if resolved_path != ":memory:":
+            Path(resolved_path).parent.mkdir(parents=True, exist_ok=True)
 
         # Ouvre la base SQLite.
-        self.connection = sqlite3.connect(persist_path)
+        self.connection = sqlite3.connect(resolved_path)
 
         # Crée la table qui conserve le texte et les métadonnées des chunks.
         self.connection.execute("""
@@ -75,11 +118,12 @@ class LexicalStore:
                 zip(ids, documents),
             )
 
-    def search(self, query: str, k: int = 5) -> dict:
+    def search(self, query: str, k: int | None = None) -> dict:
         """Recherche les k chunks les mieux classés par BM25."""
+        resolved_k = _default_top_k() if k is None else k
 
         # Vérifie que le nombre de résultats demandé est valide.
-        if k <= 0:
+        if resolved_k <= 0:
             raise ValueError("k doit être supérieur à 0.")
 
         # Nettoyage des mots pour éviter les erreurs de syntaxe SQLite FTS5
@@ -108,7 +152,7 @@ class LexicalStore:
                 ORDER BY score
                 LIMIT ?
                 """,
-                (safe_query, k),
+                (safe_query, resolved_k),
             ).fetchall()
         except sqlite3.OperationalError:
             rows = []
@@ -135,14 +179,27 @@ class VectorStore:
 
     def __init__(
         self,
-        persist_path: str = "data/chroma",
-        collection_name: str = "documents",
+        persist_path: str | Path | None = None,
+        collection_name: str | None = None,
     ):
+        resolved_path = (
+            _default_chroma_persist_path()
+            if persist_path is None
+            else str(persist_path)
+        )
+        resolved_collection = (
+            _default_chroma_collection_name()
+            if collection_name is None
+            else collection_name
+        )
+
         # Initialise la base ChromaDB.
-        self.client = chromadb.PersistentClient(path=persist_path)
+        self.client = chromadb.PersistentClient(path=resolved_path)
 
         # Récupère ou crée la collection.
-        self.collection = self.client.get_or_create_collection(name=collection_name)
+        self.collection = self.client.get_or_create_collection(
+            name=resolved_collection
+        )
 
     def add_documents(
         self,
@@ -180,7 +237,7 @@ class VectorStore:
     def search(
         self,
         query_embedding: list[float] | None = None,
-        k: int = 5,
+        k: int | None = None,
         embedding: list[float] | None = None,
     ) -> dict:
         """
@@ -190,11 +247,12 @@ class VectorStore:
         if target_embedding is None:
             raise ValueError("Un vecteur d'embedding doit être fourni.")
 
-        if k <= 0:
+        resolved_k = _default_top_k() if k is None else k
+        if resolved_k <= 0:
             raise ValueError("k doit être supérieur à 0.")
 
         # Recherche les chunks les plus similaires.
         return self.collection.query(
             query_embeddings=[target_embedding],
-            n_results=k,
+            n_results=resolved_k,
         )

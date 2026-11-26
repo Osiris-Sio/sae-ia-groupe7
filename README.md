@@ -34,6 +34,7 @@ Chaque méthode de recherche a ses forces et ses limites :
 
 Vous pouvez inspecter, visualiser et explorer l'intégralité de ce dépôt via ces outils en ligne :
 
+- 📖 **[Documentation en ligne (GitHub Pages)](https://osiris-sio.github.io/sae-ia-groupe7/)** : Consulter la documentation complète du projet et le suivi des sprints.
 - 📦 **[GitIngest](https://gitingest.com/Osiris-Sio/sae-ia-groupe7)** : Analyser et formater l'intégralité du code pour les LLM / IA.
 - 💻 **[GitHub1s](https://github1s.com/Osiris-Sio/sae-ia-groupe7)** : Parcourir le code dans un éditeur VS Code directement dans votre navigateur.
 - 📊 **[GitDiagram](https://gitdiagram.com/osiris-sio/sae-ia-groupe7)** : Visualiser interactivement l'architecture du projet sous forme de diagramme.
@@ -65,8 +66,16 @@ Vous pouvez inspecter, visualiser et explorer l'intégralité de ce dépôt via 
   - Surlignage dynamique des termes recherchés dans les extraits.
   - Option de description/résumé par LLM pour chaque document retourné.
   - Métriques d'inférence en direct (temps d'exécution, débit de génération en tokens/s, scores bruts).
-  - **109 tests automatiques** unitaires et d'intégration (avec `tests/test_ui_gradio.py`).
-- 🟡 **Sprint 4 (À venir) :** Robustesse, résilience face aux pannes Ollama et configuration externalisée.
+  - **109 tests automatiques** initiaux pour le Sprint 3 (`tests/test_ui_gradio.py`).
+- 🟢 **Sprint 4 (Robustesse, Résilience & Modularité) :**
+  - Gestion typée des pannes Ollama, timeouts et réponses JSON malformées (`ollama_client/base.py`).
+  - Messages d'alerte clairs (`gr.Warning`) et désactivation du bouton pendant le traitement (`ui_gradio.py`).
+  - Externalisation complète de la configuration via `pydantic-settings` et `.env` (avec URLs dédiées Embedding / LLM).
+  - Tests d'intégration bout-en-bout (`tests/service/test_search.py`) portant la suite à **117 tests automatiques**.
+- 🟡 **Sprint 5 (À venir — Finitions, Dataset de Démo & Préparation à l'Évaluation) :**
+  - Finalisation du jeu de données `data/demo/` (2 à 3 fichiers représentatifs par format) et filtrage par extension/dossier (bonus).
+  - Rédaction finale du `README.md` (installation, `.env`, rôles), démonstration reproductible chronométrée et revue de code croisée.
+  - _(Bonus / Perspectives)_ Intégration d'un modèle vision **VLM** (`qwen3-vl`) pour exploiter le contenu visuel des documents et packaging en exécutable **`.exe`** autonome.
 
 ---
 
@@ -120,7 +129,7 @@ L'application s'ouvre dans votre navigateur à l'adresse : **http://127.0.0.1:78
 Les tests vérifient automatiquement le code en moins d'une seconde, sans avoir besoin d'allumer Ollama :
 
 ```powershell
-# Lancer tous les tests (109 tests unitaires et d'intégration)
+# Lancer tous les tests (117 tests unitaires et d'intégration)
 py -3.11 -m unittest discover tests
 ```
 
@@ -151,7 +160,7 @@ Le projet intègre un pipeline CI/CD complet (automatique et manuel) :
 
 - **Automatique sur GitHub Actions (`.github/workflows/ci.yml`) :**
   - Se déclenche automatiquement à chaque **Push** et **Pull Request** vers les branches `main` et `dev`.
-  - Exécute les 109 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sous environnement officiel Windows (`windows-latest` avec PowerShell).
+  - Exécute les 117 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sous environnement officiel Windows (`windows-latest` avec PowerShell).
   - Déclenchable également manuellement depuis l'onglet **Actions** de GitHub (_Run workflow_).
 - **Manuelle en local avant commit (`scripts/verify.ps1`) :**
   - Exécutez simplement avant de commiter pour tout valider en 1 seconde :
@@ -176,7 +185,7 @@ Le projet intègre un pipeline CI/CD complet (automatique et manuel) :
 sae-ia-groupe7/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml           # Pipeline CI/CD GitHub Actions (109 tests auto sur PR et push)
+│       └── ci.yml           # Pipeline CI/CD GitHub Actions (117 tests auto sur PR et push)
 ├── data/
 │   ├── demo/                # Fichiers d'exemples (.txt, .md, .csv, .docx, .pdf)
 │   ├── chroma/              # Base de données vectorielle ChromaDB
@@ -203,7 +212,7 @@ sae-ia-groupe7/
 │           ├── embedding.py # Création des vecteurs (EmbeddingGemma)
 │           ├── llm.py       # Fonctions LLM (reformulation, synthèse, thèmes)
 │           └── vlm.py       # Modèle vision (prévu pour plus tard)
-├── tests/                   # 109 tests automatiques organisés par domaine
+├── tests/                   # 117 tests automatiques organisés par domaine
 │   ├── test_ui_gradio.py    # Tests unitaires de l'interface Gradio et du surlignage
 │   ├── ollama/              # Tests unitaires du client Ollama (base, embedding, llm)
 │   ├── storage/             # Tests unitaires de VectorStore et LexicalStore
@@ -217,16 +226,28 @@ sae-ia-groupe7/
 
 ## ⚙️ Réglages (`config.py`)
 
-Les réglages principaux sont dans `src/recherche_fichiers/config.py` :
+La configuration centralisée repose sur `Settings` (`pydantic-settings`) dans `src/recherche_fichiers/config.py`. Les paramètres peuvent être surchargés via des **variables d'environnement** ou un **fichier `.env`** (les chaînes vides `""` sont ignorées pour conserver les valeurs par défaut).
 
-| Variable              | Valeur par défaut        | Description                                          |
-| :-------------------- | :----------------------- | :--------------------------------------------------- |
-| `OLLAMA_URL`          | `http://localhost:11434` | Adresse du serveur Ollama                            |
-| `EMBEDDING_MODEL`     | `embeddinggemma`         | Modèle utilisé pour transformer le texte en vecteurs |
-| `EMBEDDING_DIM`       | `768`                    | Taille des vecteurs                                  |
-| `LLM_MODEL`           | `gemma2:2b`              | Modèle utilisé pour reformuler et résumer            |
-| `TOP_K`               | `5`                      | Nombre de résultats affichés par recherche           |
-| `CHROMA_PERSIST_PATH` | `data/chroma`            | Dossier où est enregistrée la base de données        |
+| Paramètre (`Settings`)   | Valeur par défaut                  | Description                                                              |
+| :----------------------- | :--------------------------------- | :----------------------------------------------------------------------- |
+| `project_root`           | 3 niveaux au-dessus de `config.py` | Racine du projet                                                         |
+| `data_dir`               | `<project_root>/data`              | Dossier de données                                                       |
+| `demo_dir`               | `<data_dir>/demo`                  | Dossier des fichiers de démonstration                                    |
+| `chroma_persist_path`    | `<data_dir>/chroma`                | Dossier de persistance ChromaDB                                          |
+| `chroma_collection_name` | `"documents"`                      | Nom de la collection ChromaDB                                            |
+| `ollama_url`             | `"http://localhost:11434"`         | URL du serveur Ollama par défaut (accepte `OLLAMA_URL` ou `OLLAMA_HOST`) |
+| `ollama_embedding_url`   | `None` (repli sur `ollama_url`)    | URL dédiée pour l'embedding (`OLLAMA_EMBEDDING_URL` ou `EMBEDDING_URL`)  |
+| `ollama_llm_url`         | `None` (repli sur `ollama_url`)    | URL dédiée pour le LLM (`OLLAMA_LLM_URL` ou `LLM_URL`)                   |
+| `ollama_timeout`         | `300.0`                            | Délai maximal d'attente HTTP Ollama (en secondes)                        |
+| `embedding_model`        | `"embeddinggemma"`                 | Modèle d'embeddings vectoriels                                           |
+| `embedding_dim`          | `768`                              | Dimension attendue des vecteurs                                          |
+| `llm_model`              | `"gemma2:2b"`                      | Modèle LLM pour reformulation, résumés et synthèse                       |
+| `vlm_model`              | `"qwen3-vl"`                       | Modèle vision configuré                                                  |
+| `top_k`                  | `5`                                | Nombre de résultats retournés par défaut                                 |
+| `similarity_threshold`   | `1.2`                              | Seuil de similarité configuré                                            |
+| `chunk_size`             | `500`                              | Taille maximale d'un chunk (en caractères)                               |
+| `chunk_overlap`          | `50`                               | Chevauchement entre deux chunks consécutifs                              |
+| `supported_formats`      | `{".txt", ".md", ".pdf", ".docx", ".csv"}` | Extensions de fichiers autorisées par défaut dans `Settings`     |
 
 ---
 
@@ -234,8 +255,8 @@ Les réglages principaux sont dans `src/recherche_fichiers/config.py` :
 
 L'application utilise deux types d'intelligence artificielle :
 
-3. **L'IA de recherche (Embedding)** : convertit le texte en vecteurs pour la recherche sémantique (par défaut : `embeddinggemma`).
-4. **L'IA de texte (LLM)** : génère les descriptions unitaires et la synthèse globale RAG (par défaut : `gemma2:2b` ou `llama3.2:3b`).
+1. **L'IA de recherche (Embedding)** : convertit le texte en vecteurs pour la recherche sémantique (par défaut : `embeddinggemma`).
+2. **L'IA de texte (LLM)** : génère les descriptions unitaires et la synthèse globale RAG (par défaut : `gemma2:2b` ou `llama3.2:3b`).
 
 Le changement de modèle se fait en **3 étapes simples** :
 
@@ -253,7 +274,7 @@ ollama pull nomic-embed-text
 
 #### Option A (Recommandée : sans modifier le code)
 
-Définissez la variable dans votre terminal avant de lancer l'application :
+Définissez la variable d'environnement ou ajoutez-la dans un fichier `.env` avant de lancer l'application :
 
 - **PowerShell (Windows) :**
   ```powershell
@@ -263,13 +284,18 @@ Définissez la variable dans votre terminal avant de lancer l'application :
   ```bash
   export LLM_MODEL="gemma4:12b"
   ```
+- **Fichier `.env` :**
+  ```bash
+  LLM_MODEL=gemma4:12b
+  EMBEDDING_MODEL=nomic-embed-text
+  ```
 
 #### Option B (Permanente dans le code)
 
-Dans `src/recherche_fichiers/config.py` :
+Modifiez la valeur par défaut du champ correspondant dans la classe Settings de src/recherche_fichiers/config.py :
 
 ```python
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma4:12b")
+llm_model: str = Field(default="gemma4:12b")
 ```
 
 ### 3. Lancer l'application
@@ -284,17 +310,26 @@ Au démarrage, l'interface affiche instantanément dans le terminal et sous le t
 
 ### 🌐 Utiliser un serveur Ollama distant (autre machine / GPU / VM)
 
-Pour déléguer l'inférence à un serveur Ollama distant, **ne mettez pas l'URL dans `LLM_MODEL`** (qui ne sert qu'au nom du modèle), mais utilisez **`OLLAMA_URL`** :
+Pour déléguer l'inférence à un serveur Ollama distant, **ne mettez pas l'URL dans `LLM_MODEL`** (qui ne sert qu'au nom du modèle), mais utilisez **`OLLAMA_URL`** (ou séparez **`OLLAMA_EMBEDDING_URL`** et **`OLLAMA_LLM_URL`** pour par exemple garder l'embedding en local et déporter uniquement le LLM sur un GPU distant) :
 
 - **En PowerShell :**
   ```powershell
   $env:OLLAMA_URL = "http://192.168.1.50:11434"
   $env:LLM_MODEL = "llama3.2:3b"
   ```
-- **Ou dans `src/recherche_fichiers/config.py` :**
+- **Dans un fichier `.env` (exemple mixte local + serveur distant) :**
+  ```ini
+  OLLAMA_EMBEDDING_URL=http://localhost:11434
+  OLLAMA_LLM_URL=http://192.168.1.50:11434
+  LLM_MODEL=gemma4:26b
+  ```
+- **Ou dans `src/recherche_fichiers/config.py` (`settings`):**
   ```python
-  OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.50:11434")
-  LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:3b")
+  ollama_url: str = Field(
+    default="http://192.168.1.50:11434",
+    validation_alias=AliasChoices("OLLAMA_URL", "OLLAMA_HOST"),
+  )
+  llm_model: str = Field(default="llama3.2:3b")
   ```
 
 > [!NOTE]

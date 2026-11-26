@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from unittest.mock import AsyncMock, MagicMock, patch
 from recherche_fichiers.service import core
+from recherche_fichiers.ollama_client import OllamaConnectionError
 
 # ------------- #
 # --- Tests --- #
@@ -185,6 +186,18 @@ class TestCore(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0]["content"], "Résultat vectoriel")
         mock_get_embedding.assert_awaited_once_with("exercice")
         mock_store.search.assert_called_once_with(embedding=[0.1, 0.2, 0.3], k=1)
+
+    async def test_search_mixed_propagates_ollama_error(self):
+        """Les erreurs typées Ollama doivent rester visibles pour l'interface."""
+        for mode in ("vectorial", "hybrid"):
+            with patch.object(
+                core,
+                "get_embedding",
+                new_callable=AsyncMock,
+                side_effect=OllamaConnectionError("serveur indisponible"),
+            ):
+                with self.assertRaises(OllamaConnectionError):
+                    await core.search_mixed("exercice", mode=mode)
 
     @patch("recherche_fichiers.service.core._get_lexical_store")
     async def test_search_mixed_lexical(self, mock_get_lexical_store):
