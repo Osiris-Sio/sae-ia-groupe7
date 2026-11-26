@@ -161,8 +161,8 @@ async def generate_chunk_description(query: str, result: dict) -> str:
             ],
         )
         return desc
-    except Exception:
-        return "Erreur lors de la génération de la description."
+    except Exception as exc:
+        return f"Erreur lors de la génération de la description : {exc}"
 
 
 def _ollama_warning_message(error: OllamaError | str) -> str:
@@ -206,7 +206,24 @@ def _ollama_warning_message(error: OllamaError | str) -> str:
 
 def _is_synthesis_error(value: str) -> bool:
     """Repère les erreurs renvoyées sous forme de texte par le service de synthèse."""
-    return value.startswith("Erreur lors de la génération de la synthèse")
+    return value.startswith(
+        (
+            "Erreur lors de la génération de la synthèse",
+            "Erreur lors de la génération de la description",
+        )
+    )
+
+
+def _storage_warning_message(error: Exception) -> str:
+    """Transforme une erreur de stockage/exécution en message clair pour l'utilisateur."""
+    text = str(error).casefold()
+    if "dimension" in text or "embedding" in text:
+        return (
+            "Incompatibilité de dimension vectorielle avec la base ChromaDB "
+            "(modèle d'embedding modifié ?). Supprimez data/chroma et data/lexical.db "
+            "puis relancez l'indexation."
+        )
+    return f"Erreur lors de la recherche documentaire : {error}"
 
 
 def format_results_html(
@@ -353,6 +370,10 @@ async def rechercher(
         )
     except OllamaError as exc:
         message = _ollama_warning_message(exc)
+        gr.Warning(message)
+        return f"<p>{escape(message)}</p>"
+    except Exception as exc:
+        message = _storage_warning_message(exc)
         gr.Warning(message)
         return f"<p>{escape(message)}</p>"
     results_by_label = dict(zip((label for label, _ in modes), mode_results))

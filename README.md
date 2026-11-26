@@ -34,6 +34,7 @@ Chaque méthode de recherche a ses forces et ses limites :
 
 Vous pouvez inspecter, visualiser et explorer l'intégralité de ce dépôt via ces outils en ligne :
 
+- 📖 **[Documentation en ligne (GitHub Pages)](https://osiris-sio.github.io/sae-ia-groupe7/)** : Consulter la documentation complète du projet et le suivi des sprints.
 - 📦 **[GitIngest](https://gitingest.com/Osiris-Sio/sae-ia-groupe7)** : Analyser et formater l'intégralité du code pour les LLM / IA.
 - 💻 **[GitHub1s](https://github1s.com/Osiris-Sio/sae-ia-groupe7)** : Parcourir le code dans un éditeur VS Code directement dans votre navigateur.
 - 📊 **[GitDiagram](https://gitdiagram.com/osiris-sio/sae-ia-groupe7)** : Visualiser interactivement l'architecture du projet sous forme de diagramme.
@@ -65,8 +66,16 @@ Vous pouvez inspecter, visualiser et explorer l'intégralité de ce dépôt via 
   - Surlignage dynamique des termes recherchés dans les extraits.
   - Option de description/résumé par LLM pour chaque document retourné.
   - Métriques d'inférence en direct (temps d'exécution, débit de génération en tokens/s, scores bruts).
-  - **109 tests automatiques** unitaires et d'intégration (avec `tests/test_ui_gradio.py`).
-- 🟡 **Sprint 4 (À venir) :** Robustesse, résilience face aux pannes Ollama et configuration externalisée.
+  - **109 tests automatiques** initiaux pour le Sprint 3 (`tests/test_ui_gradio.py`).
+- 🟢 **Sprint 4 (Robustesse, Résilience & Modularité) :**
+  - Gestion typée des pannes Ollama, timeouts et réponses JSON malformées (`ollama_client/base.py`).
+  - Messages d'alerte clairs (`gr.Warning`) et désactivation du bouton pendant le traitement (`ui_gradio.py`).
+  - Externalisation complète de la configuration via `pydantic-settings` et `.env` (avec URLs dédiées Embedding / LLM).
+  - Tests d'intégration bout-en-bout (`tests/service/test_search.py`) portant la suite à **117 tests automatiques**.
+- 🟡 **Sprint 5 (À venir — Finitions, Dataset de Démo & Préparation à l'Évaluation) :**
+  - Finalisation du jeu de données `data/demo/` (2 à 3 fichiers représentatifs par format) et filtrage par extension/dossier (bonus).
+  - Rédaction finale du `README.md` (installation, `.env`, rôles), démonstration reproductible chronométrée et revue de code croisée.
+  - _(Bonus / Perspectives)_ Intégration d'un modèle vision **VLM** (`qwen3-vl`) pour exploiter le contenu visuel des documents et packaging en exécutable **`.exe`** autonome.
 
 ---
 
@@ -120,7 +129,7 @@ L'application s'ouvre dans votre navigateur à l'adresse : **http://127.0.0.1:78
 Les tests vérifient automatiquement le code en moins d'une seconde, sans avoir besoin d'allumer Ollama :
 
 ```powershell
-# Lancer tous les tests (109 tests unitaires et d'intégration)
+# Lancer tous les tests (117 tests unitaires et d'intégration)
 py -3.11 -m unittest discover tests
 ```
 
@@ -151,7 +160,7 @@ Le projet intègre un pipeline CI/CD complet (automatique et manuel) :
 
 - **Automatique sur GitHub Actions (`.github/workflows/ci.yml`) :**
   - Se déclenche automatiquement à chaque **Push** et **Pull Request** vers les branches `main` et `dev`.
-  - Exécute les 109 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sous environnement officiel Windows (`windows-latest` avec PowerShell).
+  - Exécute les 117 tests, contrôle la syntaxe et s'assure qu'aucun fichier sensible (bases SQLite/Chroma) n'est commité, sous environnement officiel Windows (`windows-latest` avec PowerShell).
   - Déclenchable également manuellement depuis l'onglet **Actions** de GitHub (_Run workflow_).
 - **Manuelle en local avant commit (`scripts/verify.ps1`) :**
   - Exécutez simplement avant de commiter pour tout valider en 1 seconde :
@@ -176,7 +185,7 @@ Le projet intègre un pipeline CI/CD complet (automatique et manuel) :
 sae-ia-groupe7/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml           # Pipeline CI/CD GitHub Actions (109 tests auto sur PR et push)
+│       └── ci.yml           # Pipeline CI/CD GitHub Actions (117 tests auto sur PR et push)
 ├── data/
 │   ├── demo/                # Fichiers d'exemples (.txt, .md, .csv, .docx, .pdf)
 │   ├── chroma/              # Base de données vectorielle ChromaDB
@@ -203,7 +212,7 @@ sae-ia-groupe7/
 │           ├── embedding.py # Création des vecteurs (EmbeddingGemma)
 │           ├── llm.py       # Fonctions LLM (reformulation, synthèse, thèmes)
 │           └── vlm.py       # Modèle vision (prévu pour plus tard)
-├── tests/                   # 109 tests automatiques organisés par domaine
+├── tests/                   # 117 tests automatiques organisés par domaine
 │   ├── test_ui_gradio.py    # Tests unitaires de l'interface Gradio et du surlignage
 │   ├── ollama/              # Tests unitaires du client Ollama (base, embedding, llm)
 │   ├── storage/             # Tests unitaires de VectorStore et LexicalStore
@@ -238,7 +247,7 @@ La configuration centralisée repose sur `Settings` (`pydantic-settings`) dans `
 | `similarity_threshold`   | `1.2`                              | Seuil de similarité configuré                                            |
 | `chunk_size`             | `500`                              | Taille maximale d'un chunk (en caractères)                               |
 | `chunk_overlap`          | `50`                               | Chevauchement entre deux chunks consécutifs                              |
-| `supported_formats`      | `{".txt"}`                         | Extensions de fichiers autorisées par défaut dans `Settings`             |
+| `supported_formats`      | `{".txt", ".md", ".pdf", ".docx", ".csv"}` | Extensions de fichiers autorisées par défaut dans `Settings`     |
 
 ---
 

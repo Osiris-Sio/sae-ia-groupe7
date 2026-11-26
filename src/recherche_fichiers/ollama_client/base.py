@@ -81,7 +81,7 @@ class OllamaClient:
             timeout: Délai d'attente maximal en secondes pour les requêtes.
                      Si non renseigné, utilise `settings.ollama_timeout`.
         """
-        raw_host = host or DEFAULT_OLLAMA_HOST
+        raw_host = (host or DEFAULT_OLLAMA_HOST).strip()
         resolved_timeout = DEFAULT_TIMEOUT if timeout is None else timeout
         self.host = raw_host.rstrip("/")
         self.timeout = resolved_timeout
@@ -124,6 +124,42 @@ class OllamaClient:
         except (httpx.RequestError, httpx.TimeoutException, OSError):
             return False
 
+    async def _send_json(
+        self, method: str, endpoint: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        """Exécute une requête HTTP et décode la réponse JSON en gérant les erreurs réseau/JSON."""
+        endpoint = "/" + endpoint.lstrip("/")
+        client = await self._get_client()
+        request_fn = getattr(client, method)
+        try:
+            response = await request_fn(endpoint, **kwargs)
+        except httpx.TimeoutException as exc:
+            raise OllamaConnectionError(
+                f"Délai d'attente dépassé ({self.timeout}s) lors de la connexion à Ollama sur {self.host}: {exc}"
+            ) from exc
+        except httpx.RequestError as exc:
+            raise OllamaConnectionError(
+                f"Impossible de se connecter au serveur Ollama sur {self.host}: {exc}"
+            ) from exc
+
+        if response.status_code >= 400:
+            raise OllamaResponseError(response.status_code, response.text)
+
+        try:
+            payload = response.json()
+        except (ValueError, TypeError) as exc:
+            raise OllamaResponseError(
+                response.status_code,
+                f"Réponse JSON malformée reçue d'Ollama : {exc}",
+            ) from exc
+
+        if not isinstance(payload, dict):
+            raise OllamaResponseError(
+                response.status_code,
+                f"Format JSON inattendu (objet attendu, reçu {type(payload).__name__}).",
+            )
+        return payload
+
     async def get(
         self, endpoint: str, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -137,20 +173,10 @@ class OllamaClient:
             dict[str, Any]: Réponse JSON décodée.
 
         Raises:
-            OllamaConnectionError: Si le serveur est injoignable.
-            OllamaResponseError: Si l'API renvoie un code de statut HTTP >= 400.
+            OllamaConnectionError: Si le serveur est injoignable ou en timeout.
+            OllamaResponseError: Si l'API renvoie un code HTTP >= 400 ou un JSON malformé.
         """
-        endpoint = "/" + endpoint.lstrip("/")
-        client = await self._get_client()
-        try:
-            response = await client.get(endpoint, params=params)
-            if response.status_code >= 400:
-                raise OllamaResponseError(response.status_code, response.text)
-            return response.json()
-        except httpx.RequestError as exc:
-            raise OllamaConnectionError(
-                f"Impossible de se connecter au serveur Ollama sur {self.host}: {exc}"
-            ) from exc
+        return await self._send_json("get", endpoint, params=params)
 
     async def post(
         self, endpoint: str, json_data: dict[str, Any] | None = None
@@ -165,20 +191,10 @@ class OllamaClient:
             dict[str, Any]: Réponse JSON décodée.
 
         Raises:
-            OllamaConnectionError: Si le serveur est injoignable.
-            OllamaResponseError: Si l'API renvoie un code de statut HTTP >= 400.
+            OllamaConnectionError: Si le serveur est injoignable ou en timeout.
+            OllamaResponseError: Si l'API renvoie un code HTTP >= 400 ou un JSON malformé.
         """
-        endpoint = "/" + endpoint.lstrip("/")
-        client = await self._get_client()
-        try:
-            response = await client.post(endpoint, json=json_data)
-            if response.status_code >= 400:
-                raise OllamaResponseError(response.status_code, response.text)
-            return response.json()
-        except httpx.RequestError as exc:
-            raise OllamaConnectionError(
-                f"Impossible de se connecter au serveur Ollama sur {self.host}: {exc}"
-            ) from exc
+        return await self._send_json("post", endpoint, json=json_data)
 
     async def list_models(self) -> list[str]:
         """Récupère la liste des noms de modèles disponibles sur le serveur Ollama.

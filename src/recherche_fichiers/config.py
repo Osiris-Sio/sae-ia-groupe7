@@ -8,15 +8,25 @@ variables d'environnement ou un fichier `.env`.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import AliasChoices, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import (
+    AliasChoices,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-# Racine du dépôt (trois niveaux au-dessus de ce fichier : dossier_test/)
+# Racine du dépôt (trois niveaux au-dessus de ce fichier)
 _DEFAULT_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _ENV_FILE = _DEFAULT_PROJECT_ROOT / ".env"
+DEFAULT_SUPPORTED_FORMATS: frozenset[str] = frozenset(
+    {".txt", ".md", ".pdf", ".docx", ".csv"}
+)
 
 
 class Settings(BaseSettings):
@@ -74,20 +84,42 @@ class Settings(BaseSettings):
     # =====================================================================
     chunk_size: int = Field(default=500, gt=0)
     chunk_overlap: int = Field(default=50, ge=0)
-    supported_formats: set[str] = Field(default_factory=lambda: {".txt"})
+    supported_formats: Annotated[set[str], NoDecode] = Field(
+        default_factory=lambda: set(DEFAULT_SUPPORTED_FORMATS)
+    )
+
+    @field_validator(
+        "ollama_url", "ollama_embedding_url", "ollama_llm_url", mode="before"
+    )
+    @classmethod
+    def _validate_ollama_url(cls, value: Any) -> str | None:
+        """Exige une URL Ollama commençant par `http://` ou `https://`."""
+        if value is None or not str(value).strip():
+            return None
+        text = str(value).strip().rstrip("/")
+        if not text.startswith(("http://", "https://")):
+            raise ValueError(
+                f"URL Ollama invalide '{value}' : doit commencer par http:// ou https://."
+            )
+        return text
 
     @field_validator("supported_formats", mode="before")
     @classmethod
-    def _parse_supported_formats(cls, value: Any) -> Any:
-        """Permet de renseigner `SUPPORTED_FORMATS` en JSON ou en liste séparée par virgules."""
+    def _parse_supported_formats(cls, value: Any) -> set[str]:
+        """Accepte `SUPPORTED_FORMATS` en JSON (`[".txt"]`) ou séparé par virgules (`.txt,.md`)."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return set(DEFAULT_SUPPORTED_FORMATS)
         if isinstance(value, str):
-            stripped = value.strip()
-            if not stripped:
-                return None
-            if not stripped.startswith("["):
-                items = [item.strip() for item in stripped.split(",") if item.strip()]
-                return {item if item.startswith(".") else f".{item}" for item in items}
-        return value
+            raw = value.strip()
+            items = json.loads(raw) if raw.startswith("[") else raw.split(",")
+        else:
+            items = value
+        formats = {
+            f".{s.lstrip('.').lower()}" for item in items if (s := str(item).strip())
+        }
+        if not formats:
+            raise ValueError("SUPPORTED_FORMATS ne peut pas être vide.")
+        return formats
 
     @model_validator(mode="before")
     @classmethod
@@ -132,4 +164,10 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()
+try:
+    settings = Settings()
+except ValidationError as exc:
+    raise ValueError(
+        "Configuration invalide (vérifiez votre fichier .env ou vos variables d'environnement) :\n"
+        f"{exc}"
+    ) from exc

@@ -313,6 +313,21 @@ class GradioSearchTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Tokens générés/seconde :", result)
         self.assertIn("55.8 tokens/s", result)
 
+    @patch("recherche_fichiers.ui_gradio.gr.Warning")
+    async def test_rechercher_handles_dimension_mismatch_cleanly(self, mock_warning):
+        """Vérifie qu'une erreur de dimension ChromaDB affiche un avertissement clair sans crash."""
+        with patch.object(
+            ui_gradio,
+            "search_mixed",
+            new_callable=AsyncMock,
+            side_effect=ValueError("Embedding dimension 1024 does not match 768"),
+        ):
+            result = await ui_gradio.rechercher("test", ["Vectoriel (Sémantique)"], False)
+
+        mock_warning.assert_called_once()
+        self.assertIn("Incompatibilité de dimension vectorielle", result)
+        self.assertIn("data/chroma", result)
+
 
 if __name__ == "__main__":
     unittest.main()
