@@ -219,24 +219,26 @@ sae-ia-groupe7/
 
 La configuration centralisée repose sur `Settings` (`pydantic-settings`) dans `src/recherche_fichiers/config.py`. Les paramètres peuvent être surchargés via des **variables d'environnement** ou un **fichier `.env`** (les chaînes vides `""` sont ignorées pour conserver les valeurs par défaut).
 
-| Paramètre (`Settings`) | Valeur par défaut | Description |
-| :--- | :--- | :--- |
-| `project_root` | 3 niveaux au-dessus de `config.py` | Racine du projet |
-| `data_dir` | `<project_root>/data` | Dossier de données |
-| `demo_dir` | `<data_dir>/demo` | Dossier des fichiers de démonstration |
-| `chroma_persist_path` | `<data_dir>/chroma` | Dossier de persistance ChromaDB |
-| `chroma_collection_name` | `"documents"` | Nom de la collection ChromaDB |
-| `ollama_url` | `"http://localhost:11434"` | URL du serveur Ollama (accepte `OLLAMA_URL` ou `OLLAMA_HOST`) |
-| `ollama_timeout` | `300.0` | Délai maximal d'attente HTTP Ollama (en secondes) |
-| `embedding_model` | `"embeddinggemma"` | Modèle d'embeddings vectoriels |
-| `embedding_dim` | `768` | Dimension attendue des vecteurs |
-| `llm_model` | `"gemma2:2b"` | Modèle LLM pour reformulation, résumés et synthèse |
-| `vlm_model` | `"qwen3-vl"` | Modèle vision configuré |
-| `top_k` | `5` | Nombre de résultats retournés par défaut |
-| `similarity_threshold` | `1.2` | Seuil de similarité configuré |
-| `chunk_size` | `500` | Taille maximale d'un chunk (en caractères) |
-| `chunk_overlap` | `50` | Chevauchement entre deux chunks consécutifs |
-| `supported_formats` | `{".txt"}` | Extensions de fichiers autorisées par défaut dans `Settings` |
+| Paramètre (`Settings`)   | Valeur par défaut                  | Description                                                              |
+| :----------------------- | :--------------------------------- | :----------------------------------------------------------------------- |
+| `project_root`           | 3 niveaux au-dessus de `config.py` | Racine du projet                                                         |
+| `data_dir`               | `<project_root>/data`              | Dossier de données                                                       |
+| `demo_dir`               | `<data_dir>/demo`                  | Dossier des fichiers de démonstration                                    |
+| `chroma_persist_path`    | `<data_dir>/chroma`                | Dossier de persistance ChromaDB                                          |
+| `chroma_collection_name` | `"documents"`                      | Nom de la collection ChromaDB                                            |
+| `ollama_url`             | `"http://localhost:11434"`         | URL du serveur Ollama par défaut (accepte `OLLAMA_URL` ou `OLLAMA_HOST`) |
+| `ollama_embedding_url`   | `None` (repli sur `ollama_url`)    | URL dédiée pour l'embedding (`OLLAMA_EMBEDDING_URL` ou `EMBEDDING_URL`)  |
+| `ollama_llm_url`         | `None` (repli sur `ollama_url`)    | URL dédiée pour le LLM (`OLLAMA_LLM_URL` ou `LLM_URL`)                   |
+| `ollama_timeout`         | `300.0`                            | Délai maximal d'attente HTTP Ollama (en secondes)                        |
+| `embedding_model`        | `"embeddinggemma"`                 | Modèle d'embeddings vectoriels                                           |
+| `embedding_dim`          | `768`                              | Dimension attendue des vecteurs                                          |
+| `llm_model`              | `"gemma2:2b"`                      | Modèle LLM pour reformulation, résumés et synthèse                       |
+| `vlm_model`              | `"qwen3-vl"`                       | Modèle vision configuré                                                  |
+| `top_k`                  | `5`                                | Nombre de résultats retournés par défaut                                 |
+| `similarity_threshold`   | `1.2`                              | Seuil de similarité configuré                                            |
+| `chunk_size`             | `500`                              | Taille maximale d'un chunk (en caractères)                               |
+| `chunk_overlap`          | `50`                               | Chevauchement entre deux chunks consécutifs                              |
+| `supported_formats`      | `{".txt"}`                         | Extensions de fichiers autorisées par défaut dans `Settings`             |
 
 ---
 
@@ -299,17 +301,18 @@ Au démarrage, l'interface affiche instantanément dans le terminal et sous le t
 
 ### 🌐 Utiliser un serveur Ollama distant (autre machine / GPU / VM)
 
-Pour déléguer l'inférence à un serveur Ollama distant, **ne mettez pas l'URL dans `LLM_MODEL`** (qui ne sert qu'au nom du modèle), mais utilisez **`OLLAMA_URL`** :
+Pour déléguer l'inférence à un serveur Ollama distant, **ne mettez pas l'URL dans `LLM_MODEL`** (qui ne sert qu'au nom du modèle), mais utilisez **`OLLAMA_URL`** (ou séparez **`OLLAMA_EMBEDDING_URL`** et **`OLLAMA_LLM_URL`** pour par exemple garder l'embedding en local et déporter uniquement le LLM sur un GPU distant) :
 
 - **En PowerShell :**
   ```powershell
   $env:OLLAMA_URL = "http://192.168.1.50:11434"
   $env:LLM_MODEL = "llama3.2:3b"
   ```
-- **Dans un fichier `.env`**
+- **Dans un fichier `.env` (exemple mixte local + serveur distant) :**
   ```ini
-  OLLAMA_URL=http://192.168.1.50:11434
-  LLM_MODEL=llama3.2:3b
+  OLLAMA_EMBEDDING_URL=http://localhost:11434
+  OLLAMA_LLM_URL=http://192.168.1.50:11434
+  LLM_MODEL=gemma4:26b
   ```
 - **Ou dans `src/recherche_fichiers/config.py` (`settings`):**
   ```python

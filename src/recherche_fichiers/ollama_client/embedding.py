@@ -28,9 +28,7 @@ except ImportError:
 DEFAULT_EMBEDDING_MODEL: str = (
     settings.embedding_model if settings is not None else "embeddinggemma"
 )
-DEFAULT_EMBEDDING_DIM: int = (
-    settings.embedding_dim if settings is not None else 768
-)
+DEFAULT_EMBEDDING_DIM: int = settings.embedding_dim if settings is not None else 768
 
 
 # =====================================================================
@@ -67,6 +65,8 @@ class EmbeddingClient(OllamaClient):
             expected_dim: Dimension attendue des vecteurs (utilise `settings.embedding_dim`).
             timeout: Délai d'expiration des requêtes HTTP en secondes.
         """
+        if host is None and settings is not None:
+            host = settings.ollama_embedding_url or settings.ollama_url
         super().__init__(host=host, timeout=timeout)
         self.default_model = default_model or DEFAULT_EMBEDDING_MODEL
         self.expected_dim = (

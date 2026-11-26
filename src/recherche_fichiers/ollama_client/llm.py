@@ -28,9 +28,7 @@ except ImportError:
     settings = None  # type: ignore[assignment]
 
 # Modèle LLM par défaut issu de `settings`
-DEFAULT_LLM_MODEL: str = (
-    settings.llm_model if settings is not None else "gemma2:2b"
-)
+DEFAULT_LLM_MODEL: str = settings.llm_model if settings is not None else "gemma2:2b"
 
 # Statistiques de la dernière inférence et de la session courante
 _last_llm_stats: dict[str, Any] = {
@@ -96,6 +94,8 @@ class LLMClient(OllamaClient):
             default_model: Nom du modèle LLM (utilise `settings.llm_model`).
             timeout: Délai d'attente en secondes.
         """
+        if host is None and settings is not None:
+            host = settings.ollama_llm_url or settings.ollama_url
         super().__init__(host=host, timeout=timeout)
         self.default_model = default_model or DEFAULT_LLM_MODEL
         self.last_stats: dict[str, Any] = {

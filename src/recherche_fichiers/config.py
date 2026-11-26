@@ -45,6 +45,14 @@ class Settings(BaseSettings):
         default="http://localhost:11434",
         validation_alias=AliasChoices("OLLAMA_URL", "OLLAMA_HOST"),
     )
+    ollama_embedding_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OLLAMA_EMBEDDING_URL", "EMBEDDING_URL"),
+    )
+    ollama_llm_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OLLAMA_LLM_URL", "LLM_URL"),
+    )
     ollama_timeout: float = Field(default=300.0, gt=0)
 
     # =====================================================================
@@ -78,10 +86,7 @@ class Settings(BaseSettings):
                 return None
             if not stripped.startswith("["):
                 items = [item.strip() for item in stripped.split(",") if item.strip()]
-                return {
-                    item if item.startswith(".") else f".{item}"
-                    for item in items
-                }
+                return {item if item.startswith(".") else f".{item}" for item in items}
         return value
 
     @model_validator(mode="before")
