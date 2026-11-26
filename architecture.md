@@ -51,7 +51,7 @@ src/
 │   ├── service/
 │   │   ├── __init__.py
 │   │   ├── core.py          # Logique principale : indexation multi-stores, search_mixed, RRF, synthesize
-│   │   └── utils.py         # Fonctions utilitaires : parsers multi-formats (PDF, DOCX, CSV, TXT), chunking
+│   │   └── utils.py         # Fonctions utilitaires : parsers multi-formats (NB, XML, XLSX, PDF, DOCX, CSV, TXT), chunking
 │   ├── storage/
 │   │   ├── __init__.py
 │   │   └── base.py          # VectorStore (ChromaDB) et LexicalStore (SQLite FTS5 + BM25)
@@ -77,7 +77,7 @@ tests/                       # 117 tests automatiques
 
 | Composant         | Fichier(s)                                    | Rôle                                                                                                                                                                                                                                                                                                                   |
 | :---------------- | :-------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Service**       | `core.py`, `utils.py`                         | Orchestre la recherche et l'indexation simultanée. Implémente le moteur unifié `search_mixed()` (vectoriel, lexical, hybride RRF), l'extraction multi-formats (`pdfplumber`, `python-docx`, `pandas`), le découpage en fragments (_chunks_), et la synthèse documentaire `synthesize()`.                               |
+| **Service**       | `core.py`, `utils.py`                         | Orchestre la recherche et l'indexation simultanée. Implémente le moteur unifié `search_mixed()` (vectoriel, lexical, hybride RRF), l'extraction multi-formats (`pdfplumber`, `python-docx`, `pandas`, `xml.etree.ElementTree`, `openpyxl`), le découpage en fragments (_chunks_), et la synthèse documentaire `synthesize()`. |
 | **Storage**       | `base.py`                                     | Encapsule les deux moteurs de stockage :<br>- **VectorStore** : persistance et recherche de similarité vectorielle via **ChromaDB**.<br>- **LexicalStore** : table `documents` et table virtuelle `chunks_fts` via **SQLite FTS5** avec calcul de score **BM25**. Les deux partagent strictement les mêmes `chunk_id`. |
 | **Ollama Client** | `base.py`, `embedding.py`, `llm.py`, `vlm.py` | Gère les requêtes asynchrones vers le serveur Ollama pour transformer les textes en vecteurs numériques (EmbeddingGemma) et exploiter le LLM pour des fonctionnalités cognitives (synthèse, reformulation, descriptions).                                                                                              |
 | **Interface**     | `ui_gradio.py`                                | Interface utilisateur web (Gradio) permettant de saisir une requête, de sélectionner un ou plusieurs modes de recherche, d'afficher les résultats avec surlignage des mots-clés et de générer des descriptions LLM.                                                                                                    |
@@ -91,8 +91,11 @@ tests/                       # 117 tests automatiques
 ### 4.1. Indexation Multi-Stores
 
 ```text
-Fichiers sources (.txt, .md, .pdf, .docx, .csv)
+Fichiers sources (.txt, .nb, .md, .pdf, .docx, .csv, .xml, .xlsx)
   ──> Extraction du texte selon le format (utils.py)
+        ├── .txt / .nb / .md : lecture du texte UTF-8
+        ├── .xml : extraction des nœuds texte
+        └── .xlsx : lecture des cellules de toutes les feuilles
   ──> Découpage en fragments avec recouvrement (chunking)
   ──> Génération d'un identifiant stable (chunk_id = f"{doc_id}_{index}")
   ──> EmbeddingGemma (calcul du vecteur de dimension 768)
@@ -123,7 +126,7 @@ Chaque fragment documentaire extrait et indexé respecte la structure commune pa
 | `document_id` | `str` | Identifiant du document source (nom normalisé ou hash)           |
 | `content`     | `str` | Contenu textuel du fragment                                      |
 | `source_path` | `str` | Chemin d'accès vers le fichier source sur le disque              |
-| `format`      | `str` | Extension du document source (`txt`, `md`, `pdf`, `docx`, `csv`) |
+| `format`      | `str` | Extension du document source (`txt`, `nb`, `md`, `pdf`, `docx`, `csv`, `xml`, `xlsx`) |
 | `chunk_index` | `int` | Indice séquentiel du fragment dans le document d'origine         |
 
 ---
@@ -138,7 +141,7 @@ Chaque fragment documentaire extrait et indexé respecte la structure commune pa
 
 ## 6. Configuration (`config.py`)
 
-Les paramètres de l'application sont centralisés et validés via `pydantic-settings` (`Settings` et l'instance `settings`) dans `config.py`, avec surcharge possible par variables d'environnement ou fichier `.env` :
+Les paramètres de l'application sont centralisés et validés via `pydantic-settings` (`Settings` et l'instance `settings`) dans `config.py`, avec surcharge possible par variables d'environnement ou fichier `.env`. Par défaut, `supported_formats` inclut `.nb`, `.xml` et `.xlsx`; une valeur `SUPPORTED_FORMATS` définie dans `.env` remplace la liste par défaut :
 
 ```python
 from recherche_fichiers.config import settings
@@ -153,6 +156,7 @@ settings.top_k
 settings.chunk_size
 settings.chunk_overlap
 settings.chroma_persist_path
+settings.supported_formats
 ```
 
 ---
@@ -164,7 +168,7 @@ settings.chroma_persist_path
 - **ChromaDB** : Base vectorielle intégrée pour le stockage et la recherche de similarité par embeddings.
 - **Gradio** : Prototypage d'interface web réactive avec sélection multi-modes et surlignage.
 - **Ollama** : Serveur d'inférence local assurant l'exécution des modèles sans dépendance cloud.
-- **Parsers documentaires** : `pdfplumber` (PDF), `python-docx` (Word), `pandas` (CSV).
+- **Parsers documentaires** : `pdfplumber` (PDF), `python-docx` (Word), `pandas` (CSV), `xml.etree.ElementTree` (XML) et `openpyxl` (Excel). Les fichiers `.nb` sont lus comme du texte UTF-8.
 
 ---
 
@@ -172,5 +176,5 @@ settings.chroma_persist_path
 
 - 🟢 **Sprint 3 (Validé)** : Synthèse documentaire (`synthesize()`), interface comparative avec surlignage, descriptions LLM et 109 tests unitaires.
 - 🟢 **Sprint 4 (Validé)** : Robustesse face aux pannes Ollama/JSON/timeouts, configuration externalisée (`pydantic-settings` + `.env`), URLs dédiées Embedding/LLM et **117 tests automatiques**.
-- 🟡 **Sprint 5 (À venir)** : Finitions du dataset `data/demo/`, filtrage par extension/dossier (bonus), préparation de la démonstration reproductible et revue de code croisée.
+- 🟡 **Sprint 5 (En cours)** : US 1.5.7 terminée (recherche dans les fichiers `.nb`, `.xml` et `.xlsx`) ; finitions du dataset `data/demo/`, filtrage par extension/dossier (bonus), préparation de la démonstration reproductible et revue de code croisée.
 - ⚪ **Évolutions futures** : Re-ranking par cross-encoder, filtres avancés par sous-dossier / extension, et multimodalité (Qwen3-VL).

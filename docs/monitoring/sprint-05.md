@@ -7,7 +7,7 @@
   - US 1.5.4 : En tant qu'utilisateur, je peux utiliser une version exécutable `.exe` de l'application afin de pouvoir la lancer plus facilement sans passer par une commande Python.
   - US 1.5.5 : En tant qu'utilisateur, si aucune base de données n'est disponible, je peux sélectionner un dossier contenant les fichiers à indexer afin de créer la base de données.
   - US 1.5.6 : En tant qu'utilisateur, je peux modifier les paramètres directement depuis l'application, notamment reconstruire la base de données (relancer l'indexation) et modifier les paramètres actuellement définis dans le fichier `.env`.
-  - US 1.5.7 : En tant qu'utilisateur, je peux effectuer des recherches dans de nouveaux formats de fichiers, notamment .np, .xml et .xlsx.
+  - US 1.5.7 : En tant qu'utilisateur, je peux effectuer des recherches dans de nouveaux formats de fichiers, notamment .nb, .xml et .xlsx.
   - US 1.5.8 : En tant qu'utilisateur, je peux exploiter le contenu visuel de mes documents grâce à l'intégration d'un VLM (Vision Language Model).
 
 - Livrables / DoR & DoD :

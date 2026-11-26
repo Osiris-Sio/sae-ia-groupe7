@@ -46,7 +46,7 @@ from recherche_fichiers.storage.base import LexicalStore, VectorStore
 SUPPORTED_FORMATS: set[str] = (
     set(settings.supported_formats)
     if settings is not None
-    else {".txt", ".md", ".pdf", ".docx", ".csv"}
+    else {".txt", ".md", ".pdf", ".docx", ".csv", ".nb", ".xml", ".xlsx"}
 )
 DEFAULT_TOP_K: int = settings.top_k if settings is not None else 5
 DEFAULT_DEMO_DIR: Path = (

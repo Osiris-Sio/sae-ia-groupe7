@@ -19,7 +19,9 @@
 
 ## 📌 Présentation & Objectifs
 
-Ce projet permet de retrouver des informations directement **au cœur des documents** (`.pdf`, `.docx`, `.md`, `.txt`, `.csv`), puis d'en générer une synthèse structurée et sourcée via un modèle de langage (LLM).
+Ce projet permet de retrouver des informations directement **au cœur des documents** (`.pdf`, `.docx`, `.md`, `.txt`, `.nb`, `.csv`, `.xml`, `.xlsx`), puis d'en générer une synthèse structurée et sourcée via un modèle de langage (LLM).
+
+Les fichiers `.nb` sont lus comme du texte UTF-8, les fichiers `.xml` sont parcourus pour en extraire les textes, et les classeurs `.xlsx` sont lus sur toutes leurs feuilles.
 
 Chaque méthode de recherche a ses forces et ses limites :
 
@@ -72,7 +74,8 @@ Vous pouvez inspecter, visualiser et explorer l'intégralité de ce dépôt via 
   - Messages d'alerte clairs (`gr.Warning`) et désactivation du bouton pendant le traitement (`ui_gradio.py`).
   - Externalisation complète de la configuration via `pydantic-settings` et `.env` (avec URLs dédiées Embedding / LLM).
   - Tests d'intégration bout-en-bout (`tests/service/test_search.py`) portant la suite à **117 tests automatiques**.
-- 🟡 **Sprint 5 (À venir — Finitions, Dataset de Démo & Préparation à l'Évaluation) :**
+- 🟡 **Sprint 5 (En cours — Finitions, Dataset de Démo & Préparation à l'Évaluation) :**
+  - US 1.5.7 terminée : prise en charge de la recherche dans les fichiers `.nb`, `.xml` et `.xlsx`.
   - Finalisation du jeu de données `data/demo/` (2 à 3 fichiers représentatifs par format) et filtrage par extension/dossier (bonus).
   - Rédaction finale du `README.md` (installation, `.env`, rôles), démonstration reproductible chronométrée et revue de code croisée.
   - _(Bonus / Perspectives)_ Intégration d'un modèle vision **VLM** (`qwen3-vl`) pour exploiter le contenu visuel des documents et packaging en exécutable **`.exe`** autonome.
@@ -187,7 +190,7 @@ sae-ia-groupe7/
 │   └── workflows/
 │       └── ci.yml           # Pipeline CI/CD GitHub Actions (117 tests auto sur PR et push)
 ├── data/
-│   ├── demo/                # Fichiers d'exemples (.txt, .md, .csv, .docx, .pdf)
+│   ├── demo/                # Fichiers d'exemples (.txt, .nb, .md, .pdf, .docx, .csv, .xml, .xlsx)
 │   ├── chroma/              # Base de données vectorielle ChromaDB
 │   └── lexical.db           # Base de données lexicale SQLite FTS5 (BM25)
 ├── docs/
@@ -204,7 +207,7 @@ sae-ia-groupe7/
 │       ├── ui_gradio.py     # Interface web utilisateur (multi-modes, surlignage, LLM)
 │       ├── service/         # Découpage des textes, parsing, synthèse et recherche
 │       │   ├── core.py      # Programme principal (indexation, search_mixed, RRF, synthesize)
-│       │   └── utils.py     # Parsers (PDF, DOCX, CSV, TXT), découpage (chunking)
+│       │   └── utils.py     # Parsers multi-formats, découpage (chunking)
 │       ├── storage/         # Sauvegarde et indexation des données
 │       │   └── base.py      # VectorStore (ChromaDB) et LexicalStore (SQLite FTS5)
 │       └── ollama_client/   # Communication asynchrone avec Ollama
@@ -247,7 +250,7 @@ La configuration centralisée repose sur `Settings` (`pydantic-settings`) dans `
 | `similarity_threshold`   | `1.2`                              | Seuil de similarité configuré                                            |
 | `chunk_size`             | `500`                              | Taille maximale d'un chunk (en caractères)                               |
 | `chunk_overlap`          | `50`                               | Chevauchement entre deux chunks consécutifs                              |
-| `supported_formats`      | `{".txt", ".md", ".pdf", ".docx", ".csv"}` | Extensions de fichiers autorisées par défaut dans `Settings`     |
+| `supported_formats`      | `{".txt", ".nb", ".md", ".pdf", ".docx", ".csv", ".xml", ".xlsx"}` | Extensions prises en charge par défaut ; personnalisable avec `SUPPORTED_FORMATS` dans `.env` |
 
 ---
 

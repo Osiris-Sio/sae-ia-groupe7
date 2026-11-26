@@ -3,7 +3,7 @@ service/utils.py
 
 Fonctions utilitaires pour le service d'indexation et de recherche :
     - Contrôle des fichiers
-    - Lecture des fichiers multi-formats (TXT, MD, PDF, DOCX, CSV)
+    - Lecture des fichiers multi-formats (TXT, NB, MD, PDF, DOCX, CSV, XML, XLSX)
     - Découpage (chunking) du texte
     - Formatage des résultats de recherche
 """
@@ -13,6 +13,7 @@ Fonctions utilitaires pour le service d'indexation et de recherche :
 # --------------- #
 
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 # Utilisation du module de logging partagé du projet
@@ -59,7 +60,7 @@ def list_files_by_format(directory: Path, formats: set[str]) -> list[Path]:
 
 def read_text_file(file_path: Path) -> str:
     """
-    Lit le contenu d'un fichier texte (.txt, .md) en UTF-8, en ignorant les octets invalides plutôt que de planter.
+    Lit le contenu d'un fichier texte (.txt, .nb, .md) en UTF-8, en ignorant les octets invalides plutôt que de planter.
     """
     return file_path.read_text(encoding="utf-8", errors="ignore")
 
@@ -148,14 +149,58 @@ def read_csv_file(file_path: Path) -> str:
         return ""
 
 
+def read_xml_file(file_path: Path) -> str:
+    """Extrait les contenus textuels d'un document XML."""
+    try:
+        root = ET.parse(file_path).getroot()
+        return "\n".join(
+            text.strip() for text in root.itertext() if text and text.strip()
+        )
+    except Exception as e:
+        logger.error("Erreur lors de la lecture du fichier XML %s: %s", file_path, e)
+        return ""
+
+
+def read_xlsx_file(file_path: Path) -> str:
+    """Extrait les valeurs de toutes les feuilles d'un classeur Excel (.xlsx)."""
+    try:
+        from openpyxl import load_workbook
+    except ImportError as e:
+        logger.error("Dépendance manquante pour XLSX : %s", e)
+        raise
+
+    try:
+        workbook = load_workbook(file_path, read_only=True, data_only=True)
+        try:
+            sheets_content = []
+            for worksheet in workbook.worksheets:
+                rows = []
+                for row in worksheet.iter_rows(values_only=True):
+                    cells = ["" if value is None else str(value) for value in row]
+                    while cells and not cells[-1]:
+                        cells.pop()
+                    if any(cells):
+                        rows.append("\t".join(cells))
+                if rows:
+                    sheets_content.append(
+                        f"Feuille : {worksheet.title}\n" + "\n".join(rows)
+                    )
+            return "\n\n".join(sheets_content)
+        finally:
+            workbook.close()
+    except Exception as e:
+        logger.error("Erreur lors de la lecture du fichier XLSX %s: %s", file_path, e)
+        return ""
+
+
 def load_file_content(file_path: Path) -> str:
     """
     Charge le contenu textuel d'un fichier en choisissant le parser approprié selon son extension.
-    Gère : .txt, .md, .pdf, .docx, .csv
+    Gère : .txt, .nb, .md, .pdf, .docx, .csv, .xml et .xlsx
     """
     suffix = file_path.suffix.lower()
 
-    if suffix in {".txt", ".md"}:
+    if suffix in {".txt", ".nb", ".md"}:
         return read_text_file(file_path)
     elif suffix == ".pdf":
         return read_pdf_file(file_path)
@@ -163,6 +208,10 @@ def load_file_content(file_path: Path) -> str:
         return read_docx_file(file_path)
     elif suffix == ".csv":
         return read_csv_file(file_path)
+    elif suffix == ".xml":
+        return read_xml_file(file_path)
+    elif suffix == ".xlsx":
+        return read_xlsx_file(file_path)
     else:
         raise ValueError(f"Format de fichier non pris en charge : {suffix}")
 

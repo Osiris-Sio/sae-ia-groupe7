@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<documents>
+  <document id="DOC001">
+    <titre>Procédure de sécurité en laboratoire</titre>
+    <categorie>Sécurité</categorie>
+    <contenu>
+      Avant toute manipulation, l'utilisateur doit porter une blouse, des lunettes
+      de protection et des gants adaptés. Il doit vérifier l'état du matériel
+      et lire les consignes de sécurité affichées dans le laboratoire.
+    </contenu>
+  </document>
+  <document id="DOC002">
+    <titre>Modalités d'absence aux examens</titre>
+    <categorie>Scolarité</categorie>
+    <contenu>
+      En cas d'absence à un examen, l'étudiant doit prévenir son établissement
+      dans les meilleurs délais et transmettre un justificatif selon les règles
+      prévues par le règlement des études.
+    </contenu>
+  </document>
+  <document id="DOC003">
+    <titre>Emprunt de matériel informatique</titre>
+    <categorie>Informatique</categorie>
+    <contenu>
+      Pour emprunter un ordinateur portable, l'étudiant doit présenter sa carte
+      étudiante et remplir une fiche d'emprunt. Le matériel doit être rendu
+      à la date indiquée et dans son état initial.
+    </contenu>
+  </document>
+</documents>

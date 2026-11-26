@@ -200,6 +200,81 @@ class SearchIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("cours_algo.txt", synthesis)
         mock_summarize.assert_awaited_once()
 
+    async def test_index_and_search_nb_xml_xlsx_files(self):
+        from openpyxl import Workbook
+
+        from recherche_fichiers.config import Settings
+
+        default_settings = Settings(_env_file=None)
+        custom_settings = Settings(
+            _env_file=None,
+            supported_formats={".txt", ".md"},
+        )
+        self.assertTrue(
+            {".nb", ".xml", ".xlsx"}.issubset(default_settings.supported_formats)
+        )
+        self.assertEqual(custom_settings.supported_formats, {".txt", ".md"})
+
+        files = {
+            "test.nb": "nbtokenunique valentin",
+            "test.xml": "<document>xmltokenunique valentin</document>",
+            "test.xlsx": "xlsxtokenunique valentin",
+        }
+        (Path(self.temp_dir.name) / "test.nb").write_text(
+            files["test.nb"], encoding="utf-8"
+        )
+        (Path(self.temp_dir.name) / "test.xml").write_text(
+            files["test.xml"], encoding="utf-8"
+        )
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "Contenu"
+        worksheet.append(["xlsxtokenunique", "valentin"])
+        workbook.save(Path(self.temp_dir.name) / "test.xlsx")
+        workbook.close()
+
+        fake_embedding = [0.1] * 768
+        with patch(
+            "recherche_fichiers.service.core.get_embedding",
+            new_callable=AsyncMock,
+            return_value=fake_embedding,
+        ):
+            indexed_chunks = await core.index_directory(self.temp_dir.name)
+
+        self.assertEqual(indexed_chunks, 3)
+        for token, filename in (
+            ("nbtokenunique", "test.nb"),
+            ("xmltokenunique", "test.xml"),
+            ("xlsxtokenunique", "test.xlsx"),
+        ):
+            results = await core.search_mixed(token, mode="lexical", k=5)
+            self.assertTrue(
+                any(
+                    Path(result["source_path"]).name == filename
+                    and token in result["content"]
+                    for result in results
+                ),
+                f"{filename} was not searchable for {token}",
+            )
+            with patch(
+                "recherche_fichiers.service.core.get_embedding",
+                new_callable=AsyncMock,
+                return_value=fake_embedding,
+            ):
+                vector_results = await core.search_mixed(
+                    token, mode="vectorial", k=3
+                )
+            self.assertTrue(
+                any(
+                    Path(result["source_path"]).name == filename
+                    and token in result["content"]
+                    for result in vector_results
+                ),
+                f"{filename} was not available in vector search for {token}",
+            )
+
+        self.assertEqual(self.vector_store.collection.count(), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

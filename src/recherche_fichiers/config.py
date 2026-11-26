@@ -25,7 +25,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 _DEFAULT_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _ENV_FILE = _DEFAULT_PROJECT_ROOT / ".env"
 DEFAULT_SUPPORTED_FORMATS: frozenset[str] = frozenset(
-    {".txt", ".md", ".pdf", ".docx", ".csv"}
+    {".txt", ".md", ".pdf", ".docx", ".csv", ".nb", ".xml", ".xlsx"}
 )
 
 
@@ -106,7 +106,7 @@ class Settings(BaseSettings):
     @field_validator("supported_formats", mode="before")
     @classmethod
     def _parse_supported_formats(cls, value: Any) -> set[str]:
-        """Accepte `SUPPORTED_FORMATS` en JSON (`[".txt"]`) ou séparé par virgules (`.txt,.md`)."""
+        """Accepte les formats en JSON ou sous forme de liste séparée par virgules."""
         if value is None or (isinstance(value, str) and not value.strip()):
             return set(DEFAULT_SUPPORTED_FORMATS)
         if isinstance(value, str):
